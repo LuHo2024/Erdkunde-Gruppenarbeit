@@ -1,0 +1,2272 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lithium · Der Preis der Energiewende</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Inter:ital,wght@0,300;0,400;0,500;0,600;1,400&family=Playfair+Display:ital,wght@0,700;1,400;1,700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.11.4/gsap.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.11.4/ScrollTrigger.min.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth;font-size:16px}
+:root{
+  --void:#f5f0e8;
+  --deep:#ede6d6;
+  --paper:#faf7f2;
+  --energy:#7a5c38;
+  --cost:#c4622d;
+  --neutral:#9a8f7e;
+  --text:#1e1a14;
+  --glass:rgba(180,155,120,0.07);
+  --glass-border:rgba(122,92,56,0.15);
+  --grain-opacity:0.035;
+}
+body{
+  font-family:'Inter',system-ui,sans-serif;
+  background:var(--void);color:var(--text);
+  overflow-x:hidden;cursor:none;
+}
+
+/* ── FILM GRAIN OVERLAY ── */
+body::after{
+  content:'';
+  position:fixed;inset:0;z-index:9998;
+  pointer-events:none;
+  opacity:var(--grain-opacity);
+  background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+  background-size:200px 200px;
+  animation:grainShift 0.5s steps(1) infinite;
+}
+@keyframes grainShift{
+  0%{background-position:0 0}
+  20%{background-position:-40px -20px}
+  40%{background-position:20px 40px}
+  60%{background-position:-20px 10px}
+  80%{background-position:40px -40px}
+  100%{background-position:0 0}
+}
+
+/* ── PERFORMANCE: Touch-Geraete bekommen reduzierte Effekte ── */
+/* feTurbulence (Film Grain) und backdrop-filter sind auf Mobile-GPUs sehr teuer */
+@media (pointer: coarse) {
+  /* Film Grain komplett aus — groesster Performance-Gewinn */
+  body::after { display: none; }
+  /* Custom Cursor weg, normaler Cursor zurueck */
+  body { cursor: auto; }
+  #cursor-core, #cursor-ring, .cursor-burst { display: none; }
+  /* Backdrop-Blur stark reduziert (von 20-24px auf 8px) */
+  .nav-logo { backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+  .nav-links { backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+  .panel { backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); }
+}
+
+/* Bonus: respektiert Nutzer-Einstellung "Bewegung reduzieren" (iOS/Android System-Setting) */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  body::after { animation: none; }
+  #bg { display: none; }
+}
+
+/* ── LOADER ── */
+#loader{
+  position:fixed;inset:0;z-index:9999;
+  background:#1a1208;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:2rem;
+  transition:opacity 1s ease,visibility 1s ease;
+}
+#loader.gone{opacity:0;visibility:hidden;pointer-events:none}
+#atom-svg{animation:atomPulse 1.5s ease-in-out infinite}
+@keyframes atomPulse{0%,100%{transform:scale(1)}50%{transform:scale(1.06)}}
+.orbit{transform-origin:50% 50%;transform-box:fill-box}
+.orbit-1{animation:orbit1 2s linear infinite}
+.orbit-2{animation:orbit2 3s linear infinite}
+.orbit-3{animation:orbit3 2.5s linear infinite}
+@keyframes orbit1{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+@keyframes orbit2{from{transform:rotate(120deg)}to{transform:rotate(480deg)}}
+@keyframes orbit3{from{transform:rotate(240deg)}to{transform:rotate(-120deg)}}
+#loader-bar-wrap{width:200px;height:1px;background:rgba(122,92,56,0.3);border-radius:2px;overflow:hidden}
+#loader-bar{height:100%;width:0;background:var(--energy);border-radius:2px;transition:width 0.1s linear}
+#loader-label{font-family:'Space Grotesk',sans-serif;font-size:0.65rem;letter-spacing:0.35em;text-transform:uppercase;color:rgba(122,92,56,0.5);transition:opacity 0.35s ease}
+
+/* ── CANVAS ── */
+#bg{position:fixed;inset:0;z-index:0;width:100%;height:100%;pointer-events:none}
+
+/* ── CUSTOM CURSOR ── */
+#cursor-core{
+  position:fixed;width:5px;height:5px;border-radius:50%;
+  background:var(--energy);
+  transform:translate(-50%,-50%);pointer-events:none;z-index:9000;
+  transition:transform 0.1s ease;will-change:transform;
+}
+#cursor-ring{
+  position:fixed;width:28px;height:28px;border-radius:50%;
+  border:1px solid rgba(122,92,56,0.55);
+  transform:translate(-50%,-50%);pointer-events:none;z-index:9000;
+  transition:width 0.2s ease,height 0.2s ease,border-color 0.2s ease,opacity 0.2s;
+  will-change:transform;
+}
+body.hovering #cursor-ring{width:42px;height:42px;border-color:var(--energy)}
+.cursor-burst{
+  position:fixed;width:3px;height:3px;border-radius:50%;
+  background:var(--energy);pointer-events:none;z-index:8999;
+  animation:burstOut 0.5s ease-out forwards;
+}
+@keyframes burstOut{
+  0%{opacity:1;transform:translate(-50%,-50%) scale(1)}
+  100%{opacity:0;transform:translate(calc(-50% + var(--dx)),calc(-50% + var(--dy))) scale(0)}
+}
+
+/* ── NAV ── */
+#nav{
+  position:fixed;top:0;left:0;right:0;z-index:100;
+  display:flex;align-items:center;justify-content:space-between;
+  padding:1.5rem 2.5rem;pointer-events:none;
+}
+.nav-logo{
+  pointer-events:all;
+  font-family:'Space Grotesk',sans-serif;font-weight:700;
+  font-size:1rem;letter-spacing:-0.02em;
+  color:var(--energy);
+  border:1.5px solid rgba(122,92,56,0.55);
+  border-radius:6px;padding:0.35rem 0.7rem;
+  background:rgba(245,240,232,0.95);
+  backdrop-filter:blur(20px);
+  box-shadow:0 2px 12px rgba(30,20,8,0.18),0 0 0 1px rgba(30,20,8,0.06);
+  text-decoration:none;transition:box-shadow 0.3s;
+}
+.nav-logo:hover{box-shadow:0 0 16px rgba(122,92,56,0.35),0 2px 12px rgba(30,20,8,0.18)}
+.nav-logo sup{font-size:0.55em;letter-spacing:0;vertical-align:super}
+.nav-links{
+  pointer-events:all;display:flex;gap:0.2rem;
+  background:rgba(245,240,232,0.95);
+  backdrop-filter:blur(24px);
+  border:1.5px solid rgba(122,92,56,0.5);
+  border-radius:100px;padding:0.35rem;
+  box-shadow:0 2px 12px rgba(30,20,8,0.18),0 0 0 1px rgba(30,20,8,0.06);
+}
+.nav-links a{
+  display:block;padding:0.3rem 0.9rem;
+  font-family:'Space Grotesk',sans-serif;
+  font-size:0.68rem;font-weight:600;letter-spacing:0.1em;
+  text-transform:uppercase;color:rgba(30,26,20,0.65);
+  text-decoration:none;border-radius:100px;
+  transition:color 0.2s,background 0.2s;
+}
+.nav-links a:hover,.nav-links a.active{color:var(--energy);background:rgba(122,92,56,0.12)}
+/* nav over dark sections */
+#nav.nav-dark .nav-logo{
+  background:rgba(26,18,8,0.92);color:#e8c49a;
+  border-color:rgba(232,196,154,0.3);
+  box-shadow:0 2px 12px rgba(0,0,0,0.35),0 0 0 1px rgba(0,0,0,0.15);
+}
+#nav.nav-dark .nav-links{
+  background:rgba(26,18,8,0.92);
+  border-color:rgba(232,196,154,0.25);
+  box-shadow:0 2px 12px rgba(0,0,0,0.35),0 0 0 1px rgba(0,0,0,0.15);
+}
+#nav.nav-dark .nav-links a{color:rgba(232,196,154,0.6)}
+#nav.nav-dark .nav-links a:hover,#nav.nav-dark .nav-links a.active{color:#e8c49a;background:rgba(232,196,154,0.1)}
+.nav-logo,.nav-links{transition:background 0.4s,border-color 0.4s,box-shadow 0.4s,color 0.4s}
+
+/* ── LITHIUM MAP ── */
+#li-map{background:var(--paper)}
+.li-map-wrap{display:grid;grid-template-columns:1fr 390px;gap:3rem;align-items:start;margin-top:2.5rem}
+.li-map-svg-wrap svg{width:100%;height:auto;display:block;border-radius:12px;overflow:hidden}
+.map-land{fill:#c9b99a;stroke:rgba(245,240,232,0.8);stroke-width:0.6}
+.map-country--chile{fill:rgba(122,92,56,0.75);stroke:rgba(245,240,232,0.8);stroke-width:0.6;cursor:pointer;transition:fill 0.25s}
+.map-country--bolivia{fill:rgba(196,98,45,0.75);stroke:rgba(245,240,232,0.8);stroke-width:0.6;cursor:pointer;transition:fill 0.25s}
+.map-country--argentina{fill:rgba(160,104,32,0.75);stroke:rgba(245,240,232,0.8);stroke-width:0.6;cursor:pointer;transition:fill 0.25s}
+.map-country--chile:hover{fill:rgba(122,92,56,1)}
+.map-country--bolivia:hover{fill:rgba(196,98,45,1)}
+.map-country--argentina:hover{fill:rgba(160,104,32,1)}
+.map-country--dim{opacity:0.35}
+.map-dot{cursor:pointer}
+.map-info{
+  padding:2rem 2.2rem;border-radius:14px;
+  border:1px solid var(--glass-border);
+  background:rgba(122,92,56,0.06);
+  min-height:400px;
+  transition:opacity 0.18s ease, transform 0.18s ease, border-color 0.4s ease;
+  will-change:opacity,transform;
+}
+.map-info.mi-out{opacity:0;transform:translateY(-10px) scale(0.97);pointer-events:none}
+.map-info.mi-in{animation:miIn 0.38s cubic-bezier(0.22,1,0.36,1) forwards}
+@keyframes miIn{
+  from{opacity:0;transform:translateY(12px) scale(0.97)}
+  to  {opacity:1;transform:translateY(0)   scale(1)}
+}
+.map-stat-group{opacity:0;animation:miStatIn 0.32s cubic-bezier(0.22,1,0.36,1) forwards}
+@keyframes miStatIn{
+  from{opacity:0;transform:translateX(-10px)}
+  to  {opacity:1;transform:translateX(0)}
+}
+.map-info-name{transition:color 0.3s ease}
+.map-info-tag{font-size:0.6rem;letter-spacing:0.2em;text-transform:uppercase;color:var(--neutral);margin-bottom:0.5rem;display:block}
+.map-info-name{font-family:'Space Grotesk',sans-serif;font-size:1.6rem;font-weight:700;color:var(--text);margin:0 0 0.25rem;display:block}
+.map-info-sub{font-size:0.8rem;color:var(--neutral);margin:0 0 0.5rem;display:block}
+.map-info-desc{font-size:0.84rem;color:var(--text);opacity:0.72;line-height:1.65;margin:0 0 1.2rem;display:block}
+.map-stat-group{margin-bottom:1rem}
+.map-stat-group-title{font-size:0.58rem;letter-spacing:0.18em;text-transform:uppercase;color:var(--neutral);opacity:0.7;margin:0 0 0.4rem;display:block}
+.map-stat{display:flex;justify-content:space-between;align-items:baseline;padding:0.45rem 0;border-bottom:1px solid var(--glass-border)}
+.map-stat:last-child{border-bottom:none}
+.map-stat-val{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:1.05rem}
+.map-stat-lbl{font-size:0.74rem;color:var(--neutral);text-align:right;max-width:55%}
+.map-hint{font-size:0.6rem;letter-spacing:0.12em;text-transform:uppercase;color:var(--neutral);text-align:center;margin-top:0.6rem;opacity:0.55}
+@media(max-width:768px){.li-map-wrap{grid-template-columns:1fr}}
+
+/* ── BEFORE / AFTER SLIDER ── */
+.ba-section{padding:4rem 0 0;text-align:center}
+.ba-section .section-tag{justify-content:center;margin-bottom:1rem}
+.ba-section h2{margin-bottom:0.6rem}
+.ba-section .lead{max-width:560px;margin:0 auto 2rem}
+.ba-wrap{
+  position:relative;width:100%;height:520px;
+  cursor:ew-resize;user-select:none;overflow:hidden;
+}
+.ba-img{
+  position:absolute;inset:0;
+  background-size:cover;background-position:center;
+}
+.ba-after{clip-path:inset(0 0 0 50%)}
+.ba-divider{
+  position:absolute;top:0;bottom:0;left:50%;
+  width:2px;transform:translateX(-50%);
+  background:rgba(245,240,232,0.88);
+  pointer-events:none;z-index:9;
+  box-shadow:0 0 12px rgba(0,0,0,0.3);
+}
+.ba-handle{
+  position:absolute;top:50%;left:50%;
+  transform:translate(-50%,-50%);
+  width:46px;height:46px;border-radius:50%;
+  background:rgba(245,240,232,0.97);
+  border:2px solid rgba(122,92,56,0.55);
+  box-shadow:0 3px 18px rgba(30,20,8,0.35);
+  display:flex;align-items:center;justify-content:center;
+  pointer-events:none;z-index:10;
+}
+.ba-handle svg{width:18px;height:13px;stroke:var(--energy);fill:none;stroke-width:2.2;stroke-linecap:round}
+.ba-label{
+  position:absolute;top:1.6rem;
+  font-family:'Space Grotesk',sans-serif;
+  font-size:0.65rem;font-weight:700;letter-spacing:0.15em;
+  text-transform:uppercase;padding:0.32rem 0.75rem;
+  background:rgba(26,18,8,0.75);color:rgba(245,240,232,0.92);
+  border-radius:5px;pointer-events:none;
+  backdrop-filter:blur(6px);
+}
+.ba-label-before{left:1.6rem}
+.ba-label-after{right:1.6rem}
+
+/* ── MULTI COUNTER ── */
+.counter-grid{
+  display:grid;grid-template-columns:repeat(3,1fr);
+  gap:2rem;max-width:820px;margin:0 auto;
+}
+.counter-grid .counter-num{font-size:clamp(1.6rem,3.8vw,3rem)}
+@media(max-width:680px){.counter-grid{grid-template-columns:1fr;gap:2.5rem}}
+
+/* ── EDITORIAL IMG PARALLAX ── */
+.editorial-img img{transition:transform 0.35s ease;will-change:transform}
+
+/* ── PAGE ── */
+#page{position:relative;z-index:1}
+
+/* ══════════════════════════════════════
+   HERO — full bleed image
+══════════════════════════════════════ */
+#hero{
+  position:relative;min-height:100vh;
+  display:flex;align-items:flex-end;
+  overflow:hidden;
+}
+.hero-bg{
+  position:absolute;inset:0;
+  background-image:url('https://images.unsplash.com/photo-1630315283965-8b0a4a4a8cb8?w=1800&q=80&fit=crop');
+  background-size:cover;background-position:center;
+  transform:scale(1.05);
+  transition:transform 8s ease-out;
+  filter:saturate(0.7) brightness(0.88);
+}
+.hero-bg.loaded{transform:scale(1)}
+/* Cinematic letterbox gradient */
+.hero-vignette{
+  position:absolute;inset:0;
+  background:
+    linear-gradient(to bottom, rgba(26,18,8,0.55) 0%, transparent 35%, transparent 55%, rgba(26,18,8,0.85) 100%),
+    linear-gradient(to right, rgba(26,18,8,0.3) 0%, transparent 40%);
+}
+/* Duotone overlay — warm sepia cast */
+.hero-duotone{
+  position:absolute;inset:0;
+  background:linear-gradient(135deg, rgba(122,92,56,0.18) 0%, rgba(196,98,45,0.08) 100%);
+  mix-blend-mode:color;
+}
+.hero-inner{
+  position:relative;z-index:2;
+  padding:0 3.5rem 4.5rem;
+  max-width:1100px;
+  width:100%;
+}
+.hero-eyebrow{
+  display:inline-flex;align-items:center;gap:0.75rem;
+  font-family:'Space Grotesk',sans-serif;
+  font-size:0.68rem;font-weight:500;letter-spacing:0.35em;
+  text-transform:uppercase;color:rgba(245,235,210,0.7);
+  margin-bottom:1.5rem;
+  opacity:0;transform:translateY(-16px);
+}
+.hero-eyebrow::before{content:'';width:28px;height:1px;background:rgba(245,235,210,0.4)}
+.hero-pre{
+  display:block;
+  font-family:'Playfair Display',serif;
+  font-size:clamp(1.1rem,2.5vw,1.8rem);font-weight:400;font-style:italic;
+  letter-spacing:0.02em;color:rgba(245,235,210,0.65);
+  margin-bottom:0.2rem;
+  opacity:0;transform:translateY(-20px);
+}
+.hero-h1{
+  font-family:'Space Grotesk',sans-serif;
+  font-size:clamp(4.5rem,16vw,13rem);
+  font-weight:700;letter-spacing:-0.04em;
+  line-height:0.86;text-transform:uppercase;
+  color:#f5ead8;
+  display:block;margin-bottom:0.15rem;
+  opacity:0;transform:translateY(40px);
+}
+.hero-h1-line{display:block}
+.hero-sub{
+  display:block;
+  font-family:'Space Grotesk',sans-serif;
+  font-size:clamp(1.8rem,5.5vw,4.5rem);
+  font-weight:600;letter-spacing:0.04em;
+  color:rgba(196,98,45,0.9);text-transform:uppercase;
+  opacity:0;transform:translateY(24px);
+  position:relative;
+}
+.hero-desc{
+  font-family:'Inter',sans-serif;
+  font-size:clamp(0.85rem,1.4vw,1rem);
+  color:rgba(245,235,210,0.6);line-height:1.75;
+  max-width:480px;margin-top:2rem;
+  opacity:0;transform:translateY(16px);
+  border-left:2px solid rgba(196,98,45,0.5);
+  padding-left:1.25rem;
+}
+/* Glitch loop */
+.glitch-loop{animation:glitchLoop 6s ease-in-out infinite}
+@keyframes glitchLoop{
+  0%,88%,100%{text-shadow:none;clip-path:none}
+  89%{text-shadow:3px 0 rgba(122,92,56,0.8),-3px 0 rgba(196,98,45,0.8);clip-path:polygon(0 20%,100% 20%,100% 40%,0 40%)}
+  91%{text-shadow:-2px 0 rgba(196,98,45,0.6);clip-path:polygon(0 60%,100% 60%,100% 80%,0 80%)}
+  93%{text-shadow:none;clip-path:none}
+}
+/* Scroll indicator */
+.hero-scroll{
+  position:absolute;bottom:2.5rem;right:3.5rem;
+  display:flex;flex-direction:column;align-items:center;gap:0.6rem;
+  opacity:0;
+}
+.scroll-line{width:1px;height:60px;background:linear-gradient(to bottom,transparent,rgba(245,235,210,0.5));animation:scrollLineDrop 2s ease-in-out infinite}
+@keyframes scrollLineDrop{0%{transform:scaleY(0);transform-origin:top}50%{transform:scaleY(1);transform-origin:top}51%{transform:scaleY(1);transform-origin:bottom}100%{transform:scaleY(0);transform-origin:bottom}}
+.scroll-label{font-size:0.55rem;letter-spacing:0.35em;text-transform:uppercase;color:rgba(245,235,210,0.4);writing-mode:vertical-lr}
+
+/* ── MARQUEE ── */
+.marquee-wrap{
+  overflow:hidden;
+  border-top:1px solid rgba(122,92,56,0.14);
+  border-bottom:1px solid rgba(122,92,56,0.14);
+  background:var(--deep);
+  padding:0.8rem 0;position:relative;z-index:2;
+}
+.marquee-track{display:flex;width:max-content;animation:marqueeSpin 32s linear infinite}
+.marquee-wrap:hover .marquee-track{animation-play-state:paused}
+@keyframes marqueeSpin{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+.m-item{
+  font-family:'Space Grotesk',sans-serif;
+  font-size:0.65rem;font-weight:600;letter-spacing:0.22em;
+  text-transform:uppercase;color:rgba(122,92,56,0.6);
+  padding:0 2.5rem;white-space:nowrap;
+}
+.m-item::after{content:'·';margin-left:2.5rem;color:rgba(122,92,56,0.28)}
+
+/* ══════════════════════════════════════
+   SECTIONS — editorial layout system
+══════════════════════════════════════ */
+.section{padding:5rem 2rem;position:relative}
+.section--dark{background:var(--text);color:var(--void)}
+.section--dark p{color:rgba(245,240,232,0.6)}
+.section--dark .lead{color:rgba(245,240,232,0.72)}
+.section--dark h2{color:#f5ead8}
+.section--dark .section-tag{color:rgba(196,98,45,0.9)}
+.section--dark .section-tag::before{background:rgba(196,98,45,0.6)}
+.section--dark strong{color:#e8c49a}
+.section--dark .stat-num{color:#e8c49a}
+.section--dark .stat-card{background:rgba(255,255,255,0.04);border-color:rgba(255,255,255,0.08)}
+.section--dark .stat-card:hover{border-color:rgba(232,196,154,0.3)}
+.section--dark .action-list li{border-bottom-color:rgba(255,255,255,0.07)}
+.section--dark .action-num{color:rgba(232,196,154,0.18)}
+.section--dark .action-list li:hover .action-num{color:rgba(232,196,154,0.45)}
+.section--dark .action-body strong{color:#f5ead8}
+.section--dark .action-body p{color:rgba(245,240,232,0.55)}
+
+/* ── Standard panel (narrow) ── */
+.panel{
+  max-width:960px;margin:0 auto;
+  padding:3.5rem 3.5rem 4.5rem;
+  border-radius:20px;
+  background:rgba(250,247,242,0.7);
+  border:1px solid var(--glass-border);
+  backdrop-filter:blur(24px);
+  -webkit-backdrop-filter:blur(24px);
+}
+
+/* ── Editorial: image left or right ── */
+.editorial{
+  max-width:1200px;margin:0 auto;
+  display:grid;gap:0;align-items:stretch;
+  border-radius:20px;overflow:hidden;
+  border:1px solid var(--glass-border);
+  box-shadow:0 8px 60px rgba(30,20,8,0.08);
+}
+.editorial--img-left{grid-template-columns:1fr 1fr}
+.editorial--img-right{grid-template-columns:1fr 1fr}
+.editorial-img{
+  position:relative;overflow:hidden;
+  min-height:440px;
+}
+.editorial-img img{
+  width:100%;height:100%;
+  object-fit:cover;
+  filter:saturate(0.75) brightness(0.92);
+  transition:filter 0.4s;
+  transform:scale(1.18);
+  transform-origin:center center;
+}
+/* Duotone warm overlay on section images */
+.editorial-img::after{
+  content:'';position:absolute;inset:0;
+  background:linear-gradient(135deg,rgba(122,92,56,0.22) 0%,rgba(196,98,45,0.1) 100%);
+  mix-blend-mode:multiply;pointer-events:none;
+}
+.editorial-img-caption{
+  position:absolute;bottom:0;left:0;right:0;
+  padding:0.75rem 1rem;
+  background:linear-gradient(to top,rgba(26,18,8,0.65),transparent);
+  font-size:0.6rem;letter-spacing:0.15em;text-transform:uppercase;
+  color:rgba(245,235,210,0.55);
+  font-family:'Space Grotesk',sans-serif;
+}
+.editorial-body{
+  padding:3rem 3.5rem;
+  background:rgba(250,247,242,0.96);
+  display:flex;flex-direction:column;justify-content:center;
+}
+.editorial--img-right .editorial-img{order:2}
+.editorial--img-right .editorial-body{order:1}
+
+/* ── Full-bleed image banner ── */
+.img-banner{
+  position:relative;height:480px;overflow:hidden;
+  margin:0;
+}
+.img-banner img{
+  width:100%;height:100%;object-fit:cover;
+  filter:saturate(0.65) brightness(0.78);
+  transform:scale(1.18);
+  transform-origin:center center;
+}
+.img-banner-overlay{
+  position:absolute;inset:0;
+  background:linear-gradient(to bottom,rgba(26,18,8,0.3) 0%,rgba(26,18,8,0.65) 100%);
+  display:flex;align-items:center;justify-content:center;
+}
+.img-banner-text{
+  font-family:'Playfair Display',serif;
+  font-size:clamp(1.8rem,4vw,3.2rem);font-weight:700;font-style:italic;
+  color:#f5ead8;text-align:center;
+  max-width:700px;padding:0 2rem;line-height:1.3;
+  text-shadow:0 2px 40px rgba(26,18,8,0.6);
+}
+
+/* ── Ken-Burns "Breathing" — pure CSS, runs on compositor thread ── */
+/* Wrapper sits absolute over the image's container; the inner <img> keeps its */
+/* base scale(1.18) and GSAP parallax. Wrapper multiplies an extra 1.0 -> 1.12, */
+/* so the image effectively breathes between scale 1.18 and ~1.32.            */
+@keyframes ken-burns-breathing{
+  0%,100%{transform:scale(1)}
+  50%    {transform:scale(1.12)}
+}
+.ken-burns-wrap{
+  position:absolute;inset:0;
+  animation:ken-burns-breathing 16s ease-in-out infinite;
+  transform-origin:center center;
+}
+@media (prefers-reduced-motion: reduce){
+  .ken-burns-wrap{animation:none}
+}
+
+/* ── Section tags ── */
+.section-tag{
+  display:inline-flex;align-items:center;gap:0.75rem;
+  font-family:'Space Grotesk',sans-serif;
+  font-size:0.65rem;font-weight:600;letter-spacing:0.28em;
+  text-transform:uppercase;color:var(--energy);
+  margin-bottom:0.85rem;
+}
+.section-tag::before{content:'';display:block;width:22px;height:1px;background:var(--energy);opacity:0.55}
+
+h2{
+  font-family:'Space Grotesk',sans-serif;
+  font-size:clamp(2rem,5vw,3.2rem);font-weight:700;
+  letter-spacing:-0.03em;text-transform:uppercase;
+  line-height:0.95;color:var(--text);
+  margin-bottom:1.5rem;
+}
+.lead{
+  font-size:1rem;color:rgba(30,26,20,0.65);
+  line-height:1.9;margin-bottom:2.5rem;max-width:600px;
+}
+p{color:rgba(30,26,20,0.6);line-height:1.85;margin-bottom:1rem}
+strong{color:var(--energy);font-weight:600}
+
+/* ── STATS ── */
+.stats-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;margin:2.5rem 0;background:var(--glass-border);border-radius:16px;overflow:hidden}
+.stat-card{
+  padding:2.25rem 1.75rem;text-align:center;
+  background:rgba(250,247,242,0.9);
+  transition:background 0.3s;
+}
+.stat-card:hover{background:rgba(250,247,242,1)}
+.stat-num{
+  font-family:'Space Grotesk',sans-serif;
+  font-size:clamp(2.2rem,5vw,3.2rem);font-weight:700;
+  color:var(--energy);line-height:1;margin-bottom:0.6rem;
+  min-width:6ch;display:block;white-space:nowrap;overflow:hidden;
+  font-variant-numeric:tabular-nums;
+}
+.stat-label{font-size:0.68rem;color:var(--neutral);text-transform:uppercase;letter-spacing:0.1em;line-height:1.55}
+
+/* ── REGIONS ── */
+.region-cards{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;margin-top:2.5rem;background:var(--glass-border);border-radius:16px;overflow:hidden}
+.region-card{
+  padding:2rem 1.75rem;
+  background:rgba(250,247,242,0.9);
+  transition:background 0.3s;
+  position:relative;
+}
+.region-card::before{content:'';position:absolute;top:0;left:0;width:2px;height:100%;background:var(--cost);opacity:0.5;transition:opacity 0.3s}
+.region-card:hover{background:rgba(250,247,242,1)}
+.region-card:hover::before{opacity:1}
+.region-num{
+  font-family:'Space Grotesk',sans-serif;
+  font-size:2.2rem;font-weight:700;
+  color:rgba(196,98,45,0.15);line-height:1;margin-bottom:0.75rem;
+  transition:color 0.3s;
+}
+.region-card:hover .region-num{color:rgba(196,98,45,0.35)}
+.region-card h3{
+  font-family:'Space Grotesk',sans-serif;
+  font-size:0.9rem;font-weight:600;letter-spacing:0.06em;
+  text-transform:uppercase;color:var(--text);margin-bottom:0.75rem;
+}
+.region-card p{font-size:0.85rem;margin-bottom:0}
+
+/* ── VS CARDS ── */
+.vs-grid{display:grid;grid-template-columns:1fr 1fr;gap:1px;margin:2.5rem 0;background:var(--glass-border);border-radius:16px;overflow:hidden}
+.vs-card{padding:2.25rem 2rem;background:rgba(250,247,242,0.9);transition:background 0.3s}
+.vs-card:hover{background:rgba(250,247,242,1)}
+.vs-label{
+  font-family:'Space Grotesk',sans-serif;
+  font-size:0.65rem;font-weight:700;letter-spacing:0.22em;
+  text-transform:uppercase;margin-bottom:1rem;
+  display:flex;align-items:center;gap:0.5rem;
+}
+.vs-card--win .vs-label{color:var(--energy)}
+.vs-card--lose .vs-label{color:var(--cost)}
+.vs-label::before{content:'';width:5px;height:5px;border-radius:50%;flex-shrink:0}
+.vs-card--win .vs-label::before{background:var(--energy)}
+.vs-card--lose .vs-label::before{background:var(--cost)}
+
+/* ── CO2 BARS ── */
+.co2-wrap{
+  background:rgba(250,247,242,0.9);border:1px solid var(--glass-border);
+  border-radius:16px;padding:2.25rem;margin:2.5rem 0;
+  display:flex;flex-direction:column;gap:1.75rem;
+}
+.co2-row-label{font-size:0.7rem;color:var(--neutral);letter-spacing:0.1em;text-transform:uppercase;margin-bottom:0.6rem}
+.co2-track{height:40px;background:rgba(30,26,20,0.06);border-radius:6px;overflow:hidden}
+.co2-bar{
+  height:100%;border-radius:6px;width:0;
+  display:flex;align-items:center;padding:0 1rem;
+  font-family:'Space Grotesk',sans-serif;font-size:0.95rem;font-weight:700;
+  transition:width 1.8s cubic-bezier(0.34,1.1,0.64,1);
+  position:relative;overflow:hidden;
+}
+.co2-bar::after{
+  content:'';position:absolute;inset:0;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,0.18),transparent);
+  animation:barShimmer 2.5s ease-in-out infinite;
+}
+@keyframes barShimmer{0%{transform:translateX(-100%)}100%{transform:translateX(200%)}}
+.co2-bar--ev{background:linear-gradient(90deg,rgba(196,98,45,0.9),rgba(196,98,45,0.65));color:#fff}
+.co2-bar--ice{background:rgba(154,143,126,0.22);color:var(--neutral)}
+
+/* ── PULL QUOTE ── */
+.pull-quote{
+  font-family:'Playfair Display',serif;
+  font-size:clamp(1.4rem,3vw,2.1rem);font-weight:400;font-style:italic;
+  color:var(--text);text-align:center;
+  padding:3rem 3rem;margin:2.5rem 0;
+  border-radius:16px;line-height:1.5;
+  background:rgba(250,247,242,0.9);
+  border:1px solid var(--glass-border);
+  position:relative;
+}
+.pull-quote::before{
+  content:'\201C';
+  position:absolute;top:-0.5rem;left:1.5rem;
+  font-size:7rem;line-height:1;
+  color:var(--energy);opacity:0.12;
+  font-family:'Playfair Display',serif;
+}
+
+/* ── QUOTE BLOCKS ── */
+.quotes-grid{display:grid;grid-template-columns:1fr 1fr;gap:1px;margin:2.5rem 0;background:var(--glass-border);border-radius:16px;overflow:hidden}
+.quote-block{
+  padding:2.25rem;
+  background:rgba(250,247,242,0.9);
+  position:relative;overflow:hidden;transition:background 0.3s;
+}
+.quote-block:hover{background:rgba(250,247,242,1)}
+.quote-block::before{
+  content:'\201C';position:absolute;top:-0.5rem;left:1rem;
+  font-size:7rem;line-height:1;color:var(--energy);opacity:0.07;
+  font-family:'Playfair Display',serif;transition:opacity 0.3s;
+}
+.quote-block:hover::before{opacity:0.14}
+.quote-block p{font-size:0.92rem;font-style:italic;color:var(--text);margin-bottom:1rem;line-height:1.75;font-family:'Playfair Display',serif}
+.quote-block cite{font-size:0.67rem;color:var(--neutral);font-style:normal;letter-spacing:0.05em}
+
+/* ── SLOGAN ── */
+.slogan-box{
+  padding:3rem 2.5rem;margin:2.5rem 0;border-radius:16px;
+  text-align:center;
+  background:rgba(250,247,242,0.9);border:1px solid var(--glass-border);
+}
+.slogan-pre{font-size:0.65rem;letter-spacing:0.22em;text-transform:uppercase;color:var(--neutral);margin-bottom:1rem}
+.slogan-text{
+  font-family:'Playfair Display',serif;
+  font-size:clamp(1.5rem,4vw,2.6rem);font-weight:700;font-style:italic;
+  color:var(--energy);letter-spacing:-0.01em;line-height:1.2;
+  min-height:1.4em;display:block;
+}
+.tw-cursor{display:inline-block;color:var(--energy);animation:twBlink 0.7s step-end infinite}
+@keyframes twBlink{0%,100%{opacity:1}50%{opacity:0}}
+.tw-cursor.done{animation:none;opacity:0}
+
+/* ── SPLIT COMPARE ── */
+.split-compare{display:grid;grid-template-columns:1fr auto 1fr;gap:1.5rem;align-items:center;margin:2.5rem 0}
+.split-vs{
+  font-family:'Space Grotesk',sans-serif;font-size:1.2rem;font-weight:700;
+  color:rgba(30,26,20,0.18);animation:vsDance 3s ease-in-out infinite;
+}
+@keyframes vsDance{0%,100%{transform:scale(1)}50%{transform:scale(1.1)}}
+.split-item{padding:2rem;border-radius:16px;background:rgba(250,247,242,0.9);border:1px solid var(--glass-border)}
+.split-label{font-size:0.68rem;font-weight:700;letter-spacing:0.15em;text-transform:uppercase;margin-bottom:1rem;display:flex;align-items:center;gap:0.4rem}
+.split-item--pos .split-label{color:var(--energy)}
+.split-item--neg .split-label{color:var(--cost)}
+.split-item--pos .split-label::before{content:'';width:5px;height:5px;border-radius:50%;background:var(--energy)}
+.split-item--neg .split-label::before{content:'';width:5px;height:5px;border-radius:50%;background:var(--cost)}
+.split-item ul{list-style:none;display:flex;flex-direction:column;gap:0.6rem}
+.split-item li{font-size:0.87rem;color:rgba(30,26,20,0.6);padding-left:1.2rem;position:relative;transition:transform 0.2s}
+.split-item li:hover{transform:translateX(4px)}
+.split-item--pos li::before{content:'↑';position:absolute;left:0;color:var(--energy)}
+.split-item--neg li::before{content:'↓';position:absolute;left:0;color:var(--cost)}
+
+/* ── ACTION LIST ── */
+.action-list{list-style:none;margin:2.5rem 0}
+.action-list li{
+  display:grid;grid-template-columns:3.5rem 1fr;gap:1.5rem;
+  align-items:start;padding:1.75rem 0;
+  border-bottom:1px solid rgba(122,92,56,0.1);
+  transition:padding-left 0.3s;
+}
+.action-list li:last-child{border-bottom:none}
+.action-list li:hover{padding-left:0.75rem}
+.action-num{
+  font-family:'Space Grotesk',sans-serif;font-size:2.2rem;font-weight:700;
+  color:rgba(122,92,56,0.18);line-height:1;transition:color 0.3s;
+}
+.action-list li:hover .action-num{color:rgba(122,92,56,0.45)}
+.action-body strong{display:block;font-size:1rem;font-weight:600;color:var(--text);margin-bottom:0.4rem}
+.action-body p{font-size:0.88rem;margin-bottom:0}
+
+/* ── FOOTER ── */
+#footer{
+  padding:4rem 2rem 5rem;text-align:center;
+  background:var(--text);
+  position:relative;overflow:hidden;
+}
+.footer-watermark{
+  position:absolute;bottom:-2rem;left:50%;transform:translateX(-50%);
+  font-family:'Space Grotesk',sans-serif;
+  font-size:clamp(8rem,25vw,20rem);font-weight:700;
+  color:rgba(245,240,232,0.04);letter-spacing:-0.05em;
+  pointer-events:none;user-select:none;white-space:nowrap;line-height:1;
+}
+.footer-text{font-size:0.7rem;color:rgba(245,240,232,0.3);letter-spacing:0.12em;position:relative;z-index:1}
+
+/* ── REVEAL ── */
+.reveal{opacity:0;transform:translateY(32px);transition:opacity 0.75s ease,transform 0.75s cubic-bezier(0.34,1.2,0.64,1)}
+.reveal.visible{opacity:1;transform:none}
+.reveal-delay-1{transition-delay:0.12s}
+.reveal-delay-2{transition-delay:0.24s}
+.reveal-delay-3{transition-delay:0.36s}
+
+/* ── RESPONSIVE ── */
+@media(max-width:900px){
+  .editorial--img-left,.editorial--img-right{grid-template-columns:1fr}
+  .editorial-img{min-height:280px}
+  .editorial--img-right .editorial-img{order:0}
+  .editorial--img-right .editorial-body{order:0}
+}
+@media(max-width:768px){
+  .nav-links{display:none}
+  #nav{padding:1rem 1.5rem}
+  .hero-inner{padding:0 1.5rem 3.5rem}
+  .hero-scroll{right:1.5rem}
+  .panel{padding:2rem 1.5rem 3rem;border-radius:16px}
+  .stats-grid,.region-cards,.vs-grid,.quotes-grid{grid-template-columns:1fr}
+  .split-compare{grid-template-columns:1fr;gap:1rem}
+  .split-vs{text-align:left;padding:0}
+  .section{padding:3rem 1rem}
+  .editorial-body{padding:2rem 1.75rem}
+  .img-banner{height:300px}
+}
+@media(prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:0.01ms!important;transition-duration:0.01ms!important}
+}
+
+/* ── FAZIT GRID ── */
+.fazit-grid{
+  display:grid;grid-template-columns:1fr 1fr;
+  gap:1px;margin:2.5rem 0;
+  background:rgba(255,255,255,0.07);
+  border-radius:16px;overflow:visible;
+}
+.fazit-card{
+  padding:2.5rem 2rem;
+  background:rgba(255,255,255,0.02);
+  position:relative;overflow:hidden;
+  z-index:1;
+  transition:background 0.3s,box-shadow 0.35s,transform 0.45s cubic-bezier(0.4,0,0.2,1),z-index 0s;
+  transform-origin:top left;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,0.05);
+}
+.fazit-card:nth-child(1){border-radius:16px 0 0 0}
+.fazit-card:nth-child(2){border-radius:0 16px 0 0;transform-origin:top right}
+.fazit-card:nth-child(3){border-radius:0 0 0 16px;transform-origin:bottom left}
+.fazit-card:nth-child(4){border-radius:0 0 16px 0;transform-origin:bottom right}
+.fazit-card:hover{
+  background:rgba(255,255,255,0.055);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,0.05),inset 0 0 45px rgba(196,98,45,0.07);
+}
+.fazit-card::after{
+  content:'';position:absolute;
+  bottom:0;left:0;right:0;height:2px;
+  background:linear-gradient(90deg,var(--cost),transparent);
+  transform:scaleX(0);transform-origin:left;
+  transition:transform 0.45s ease;
+}
+.fazit-card:hover::after{transform:scaleX(1)}
+.fazit-num-bg{
+  font-family:'Space Grotesk',sans-serif;
+  font-size:5.5rem;font-weight:700;letter-spacing:-0.04em;
+  color:rgba(232,196,154,0.06);line-height:1;
+  margin-bottom:-0.75rem;
+  transition:color 0.35s;
+}
+.fazit-card:hover .fazit-num-bg{color:rgba(232,196,154,0.15)}
+.fazit-title{
+  font-family:'Space Grotesk',sans-serif;
+  font-size:1rem;font-weight:600;
+  color:#f5ead8;margin:0 0 0.5rem;
+}
+.fazit-desc{
+  font-size:0.86rem;
+  color:rgba(245,240,232,0.48);
+  line-height:1.72;margin:0;
+}
+/* ── FAZIT EXPAND ── */
+.fazit-card{cursor:pointer;user-select:none}
+.fazit-card .fazit-expand-icon{
+  position:absolute;top:1.2rem;right:1.2rem;
+  width:22px;height:22px;border-radius:50%;
+  border:1.5px solid rgba(232,196,154,0.25);
+  display:flex;align-items:center;justify-content:center;
+  transition:border-color 0.3s,background 0.3s,transform 0.4s;
+  flex-shrink:0;
+}
+.fazit-card .fazit-expand-icon svg{
+  width:10px;height:10px;
+  stroke:rgba(232,196,154,0.5);
+  transition:stroke 0.3s,transform 0.4s;
+  transform:rotate(0deg);
+}
+.fazit-card.expanded .fazit-expand-icon{
+  border-color:rgba(196,98,45,0.6);
+  background:rgba(196,98,45,0.12);
+}
+.fazit-card.expanded .fazit-expand-icon svg{
+  stroke:rgba(196,98,45,0.9);
+  transform:rotate(180deg);
+}
+.fazit-extra{
+  max-height:0;overflow:hidden;
+  opacity:0;
+  margin-top:0;
+  transition:max-height 0.55s cubic-bezier(0.4,0,0.2,1),
+             opacity 0.4s ease 0.05s,
+             margin-top 0.4s ease;
+}
+.fazit-card.expanded .fazit-extra{
+  max-height:320px;
+  opacity:1;
+  margin-top:1rem;
+}
+.fazit-extra-inner{
+  padding-top:0.75rem;
+  border-top:1px solid rgba(255,255,255,0.07);
+}
+.fazit-extra-inner p{
+  font-size:0.82rem;
+  color:rgba(245,240,232,0.52);
+  line-height:1.78;
+  margin:0 0 0.55rem;
+}
+.fazit-extra-inner p:last-child{margin-bottom:0}
+.fazit-extra-inner strong{color:rgba(232,196,154,0.85);font-weight:600}
+.fazit-card.expanded{
+  background:rgba(255,255,255,0.05)!important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,0.05),inset 0 0 55px rgba(196,98,45,0.09),0 8px 40px rgba(0,0,0,0.35)!important;
+  transform:scaleX(1.15);
+  z-index:3;
+}
+.fazit-card.expanded::after{transform:scaleX(1)}
+
+/* ── FAZIT BG GLOW + WATERMARK ── */
+#fazit{position:relative;overflow:hidden}
+#fazit::before{
+  content:'';position:absolute;inset:0;
+  background:radial-gradient(ellipse 80% 50% at 50% 20%,rgba(122,92,56,0.07) 0%,transparent 70%);
+  pointer-events:none;z-index:0;
+}
+.fazit-watermark{
+  position:absolute;top:-1rem;right:-0.5rem;
+  font-family:'Space Grotesk',sans-serif;
+  font-size:clamp(10rem,22vw,18rem);font-weight:700;
+  color:rgba(245,240,232,0.022);letter-spacing:-0.06em;
+  pointer-events:none;user-select:none;line-height:1;z-index:0;
+}
+/* ── MANIFESTO ── */
+.manifesto{
+  padding:3rem 0 2rem;
+  border-top:1px solid rgba(255,255,255,0.06);
+  margin-top:0.5rem;
+  position:relative;z-index:1;
+}
+.manifesto-rule{
+  height:1px;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,0.1),transparent);
+  margin:1.2rem 0;
+}
+.manifesto-line{
+  display:block;
+  font-family:'Playfair Display',serif;
+  font-style:italic;line-height:1.1;
+}
+.manifesto-line--sm{
+  font-size:clamp(1rem,2vw,1.5rem);
+  color:rgba(245,240,232,0.38);
+  text-align:left;
+}
+.manifesto-line--mid{
+  font-size:clamp(1.5rem,3.2vw,2.5rem);
+  color:rgba(245,240,232,0.65);
+  text-align:right;
+}
+.manifesto-line--accent{
+  font-size:clamp(2.5rem,7vw,5.5rem);
+  letter-spacing:-0.03em;text-align:center;
+  background:linear-gradient(135deg,var(--energy) 20%,var(--cost));
+  -webkit-background-clip:text;
+  -webkit-text-fill-color:transparent;
+  background-clip:text;
+}
+@media(max-width:600px){
+  .fazit-grid{grid-template-columns:1fr}
+  .manifesto-line--mid{text-align:left}
+  .fazit-card:nth-child(1){border-radius:16px 16px 0 0;transform-origin:top center}
+  .fazit-card:nth-child(2){border-radius:0;transform-origin:top center}
+  .fazit-card:nth-child(3){border-radius:0;transform-origin:bottom center}
+  .fazit-card:nth-child(4){border-radius:0 0 16px 16px;transform-origin:bottom center}
+}
+
+/* ── SCROLL TO TOP ── */
+#scroll-top{
+  position:fixed;bottom:2rem;right:1.75rem;
+  width:36px;height:36px;border-radius:50%;
+  background:rgba(245,240,232,0.95);
+  border:1.5px solid rgba(122,92,56,0.5);
+  box-shadow:0 2px 12px rgba(30,20,8,0.18);
+  display:flex;align-items:center;justify-content:center;
+  cursor:pointer;z-index:200;
+  opacity:0;pointer-events:none;
+  transition:opacity 0.3s,transform 0.3s,box-shadow 0.3s;
+}
+#scroll-top.visible{opacity:1;pointer-events:all}
+#scroll-top:hover{
+  box-shadow:0 4px 18px rgba(122,92,56,0.3);
+  transform:translateY(-2px);
+}
+#scroll-top svg{width:14px;height:14px;stroke:var(--energy);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+@media(max-width:768px){#scroll-top{display:none}}
+
+/* ── READ PROGRESS ── */
+#read-progress{
+  position:fixed;top:0;left:0;height:2px;width:0%;
+  background:linear-gradient(90deg,var(--energy),var(--cost));
+  z-index:10000;pointer-events:none;
+}
+
+/* ── CHAPTER NAV ── */
+#chapter-nav{
+  position:fixed;right:1.75rem;top:50%;
+  transform:translateY(-50%);
+  display:flex;flex-direction:column;gap:0.6rem;
+  z-index:200;
+}
+.ch-dot{
+  width:8px;height:8px;border-radius:50%;
+  border:1.5px solid rgba(122,92,56,0.65);
+  background:rgba(245,240,232,0.55);
+  box-shadow:0 0 0 1px rgba(30,20,8,0.1);
+  cursor:pointer;
+  transition:all 0.25s;
+}
+.ch-dot.active{
+  background:var(--energy);border-color:var(--energy);
+  transform:scale(1.7);
+  box-shadow:0 0 8px rgba(122,92,56,0.45),0 0 0 1px rgba(122,92,56,0.2);
+}
+.ch-dot:hover:not(.active){
+  border-color:rgba(122,92,56,0.9);
+  background:rgba(122,92,56,0.25);
+  transform:scale(1.35);
+}
+.ch-dot::after{
+  content:attr(data-label);
+  position:absolute;right:calc(100% + 10px);top:50%;
+  transform:translateY(-50%);
+  font-family:'Space Grotesk',sans-serif;
+  font-size:0.6rem;font-weight:600;letter-spacing:0.1em;
+  text-transform:uppercase;white-space:nowrap;
+  color:rgba(30,26,20,0.85);
+  background:rgba(245,240,232,0.95);
+  border:1px solid rgba(122,92,56,0.35);
+  border-radius:4px;padding:0.2rem 0.5rem;
+  box-shadow:0 2px 8px rgba(30,20,8,0.12);
+  opacity:0;pointer-events:none;
+  transition:opacity 0.2s ease;
+}
+.ch-dot{position:relative}
+.ch-dot:hover::after{opacity:1}
+@media(max-width:768px){#chapter-nav{display:none}}
+
+/* ── WATER COUNTER ── */
+.counter-num{
+  font-family:'Space Grotesk',sans-serif;
+  font-size:clamp(2.8rem,9vw,7rem);font-weight:700;
+  color:#e8c49a;line-height:1;letter-spacing:-0.04em;
+  font-variant-numeric:tabular-nums;
+  display:block;margin:1.25rem 0;
+}
+</style>
+</head>
+<body>
+
+<!-- LOADER -->
+<div id="loader">
+  <svg id="atom-svg" width="80" height="80" viewBox="0 0 90 90" fill="none">
+    <circle cx="45" cy="45" r="7" fill="#7a5c38" opacity="0.9"/>
+    <circle cx="45" cy="45" r="4" fill="#1a1208"/>
+    <g class="orbit orbit-1">
+      <ellipse cx="45" cy="45" rx="34" ry="14" stroke="#7a5c38" stroke-width="1" opacity="0.35" transform="rotate(0 45 45)"/>
+      <circle cx="79" cy="45" r="3" fill="#7a5c38" opacity="0.9"/>
+    </g>
+    <g class="orbit orbit-2">
+      <ellipse cx="45" cy="45" rx="34" ry="14" stroke="#7a5c38" stroke-width="1" opacity="0.35" transform="rotate(60 45 45)"/>
+      <circle cx="62" cy="74.4" r="3" fill="#7a5c38" opacity="0.9"/>
+    </g>
+    <g class="orbit orbit-3">
+      <ellipse cx="45" cy="45" rx="34" ry="14" stroke="#7a5c38" stroke-width="1" opacity="0.35" transform="rotate(120 45 45)"/>
+      <circle cx="28" cy="74.4" r="3" fill="#7a5c38" opacity="0.9"/>
+    </g>
+  </svg>
+  <div id="loader-bar-wrap"><div id="loader-bar"></div></div>
+  <span id="loader-label">Wird geladen</span>
+</div>
+
+<canvas id="bg"></canvas>
+<div id="read-progress"></div>
+<button id="scroll-top" aria-label="Nach oben">
+  <svg viewBox="0 0 24 24"><polyline points="18 15 12 9 6 15"/></svg>
+</button>
+<div id="cursor-core"></div>
+<div id="cursor-ring"></div>
+
+<div id="chapter-nav">
+  <div class="ch-dot" data-target="hero" data-label="Intro"></div>
+  <div class="ch-dot" data-target="problem" data-label="01 Problem"></div>
+  <div class="ch-dot" data-target="wasserstand" data-label="Wasser"></div>
+  <div class="ch-dot" data-target="regionen" data-label="02 Regionen"></div>
+  <div class="ch-dot" data-target="li-map" data-label="Karte"></div>
+  <div class="ch-dot" data-target="gewinner" data-label="03 Gewinner"></div>
+  <div class="ch-dot" data-target="mythos" data-label="04 Mythos"></div>
+  <div class="ch-dot" data-target="stimmen" data-label="05 Stimmen"></div>
+  <div class="ch-dot" data-target="social" data-label="06 Social Media"></div>
+  <div class="ch-dot" data-target="fazit" data-label="07 Fazit"></div>
+</div>
+
+<div id="page">
+
+<!-- NAV -->
+<nav id="nav">
+  <a href="#hero" class="nav-logo">Li<sup>3</sup></a>
+  <div class="nav-links" id="navLinks">
+    <a href="#problem">Problem</a>
+    <a href="#regionen">Regionen</a>
+    <a href="#gewinner">Gewinner</a>
+    <a href="#mythos">Mythos</a>
+    <a href="#stimmen">Stimmen</a>
+    <a href="#social">Social</a>
+    <a href="#fazit">Fazit</a>
+  </div>
+</nav>
+
+<!-- ══════════ HERO ══════════ -->
+<header id="hero">
+  <div class="hero-bg" id="heroBg"></div>
+  <div class="hero-vignette"></div>
+  <div class="hero-duotone"></div>
+  <div class="hero-inner">
+    <span class="hero-eyebrow">Erdkunde · Rohstoffe · 2025</span>
+    <span class="hero-pre">Der Preis der</span>
+    <span class="hero-h1" id="heroTitle"><span class="hero-h1-line">ENERGIE-</span><span class="hero-h1-line">WENDE</span></span>
+    <span class="hero-sub glitch-loop" id="heroSub">LITHIUM-ABBAU</span>
+    <p class="hero-desc">Elektroautos boomen – doch jede Batterie hat einen Preis. Dieser trägt ihn nicht auf dem Preisschild.</p>
+  </div>
+  <div class="hero-scroll" id="heroScroll">
+    <span class="scroll-label">Scroll</span>
+    <div class="scroll-line"></div>
+  </div>
+</header>
+
+<!-- MARQUEE -->
+<div class="marquee-wrap">
+  <div class="marquee-track">
+    <span class="m-item">20 Mio. E-Autos 2025</span>
+    <span class="m-item">+500% Nachfrage bis 2040</span>
+    <span class="m-item">56% Weltreserven im Dreieck</span>
+    <span class="m-item">500.000 Liter Wasser pro Tonne</span>
+    <span class="m-item">71% weniger CO₂ Lebensdauer</span>
+    <span class="m-item">Nur 20–30% Recycling</span>
+    <span class="m-item">20 Mio. E-Autos 2025</span>
+    <span class="m-item">+500% Nachfrage bis 2040</span>
+    <span class="m-item">56% Weltreserven im Dreieck</span>
+    <span class="m-item">500.000 Liter Wasser pro Tonne</span>
+    <span class="m-item">71% weniger CO₂ Lebensdauer</span>
+    <span class="m-item">Nur 20–30% Recycling</span>
+  </div>
+</div>
+
+<!-- ══════════ 01 PROBLEM ══════════ -->
+<section class="section" id="problem">
+  <div class="editorial editorial--img-right reveal">
+    <div class="editorial-body">
+      <span class="section-tag">01 / Problem</span>
+      <h2>Das Problem –<br>Warum Lithium?</h2>
+      <p class="lead">Elektroautos boomen – 2025 wurden über <strong>20 Millionen</strong> E-Autos verkauft. Jedes braucht eine Batterie. Jede Batterie braucht Lithium. Die IEA schätzt: Die weltweite Nachfrage steigt bis 2040 um über <strong>+500%</strong>.</p>
+      <div class="stats-grid">
+        <div class="stat-card reveal">
+          <div class="stat-num" data-target="20" data-suffix=" Mio.">20 Mio.</div>
+          <div class="stat-label">E-Autos verkauft 2025</div>
+        </div>
+        <div class="stat-card reveal reveal-delay-1">
+          <div class="stat-num" data-target="500" data-prefix="+" data-suffix="%">+500%</div>
+          <div class="stat-label">Nachfrage bis 2040</div>
+        </div>
+        <div class="stat-card reveal reveal-delay-2">
+          <div class="stat-num" data-target="56" data-suffix="%">56%</div>
+          <div class="stat-label">Weltreserven im Dreieck</div>
+        </div>
+      </div>
+    </div>
+    <div class="editorial-img">
+      <img src="https://images.unsplash.com/photo-1700726783633-23c0c6383b00?w=900&q=80&fit=crop&crop=center" alt="Elektroauto Fabrikproduktion" loading="lazy">
+      <div class="editorial-img-caption">E-Auto Produktion · Millionen Batterien weltweit</div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════ FULL-BLEED BANNER ══════════ -->
+<div class="img-banner reveal">
+  <img src="https://images.unsplash.com/photo-1548266652-99cf27701ced?w=1800&q=80&fit=crop&crop=center" alt="Atacama Wüste" loading="lazy">
+  <div class="img-banner-overlay">
+    <p class="img-banner-text">„Die Wüste hat kein Gedächtnis – aber sie vergisst nichts."</p>
+  </div>
+</div>
+
+<!-- ══════════ WASSER-COUNTER ══════════ -->
+<section class="section section--dark" id="wasserstand" style="text-align:center;padding:6rem 2rem">
+  <div class="reveal">
+    <span class="section-tag" style="justify-content:center;margin-bottom:1.5rem">Live · 2026</span>
+    <p style="font-size:0.65rem;letter-spacing:0.3em;text-transform:uppercase;color:rgba(245,240,232,0.3);margin-bottom:2.5rem">Seit du diese Seite liest &nbsp;/&nbsp; seit 1. Januar 2026</p>
+    <div class="counter-grid">
+      <div>
+        <span class="counter-num" id="waterCount">0</span>
+        <p style="font-size:0.95rem;font-family:'Space Grotesk',sans-serif;font-weight:500;color:rgba(245,240,232,0.55);margin:0.5rem 0 0.2rem">Liter Wasser</p>
+        <p style="font-size:0.65rem;color:rgba(245,240,232,0.28);letter-spacing:0.05em">seit du liest · Lithiumabbau</p>
+      </div>
+      <div>
+        <span class="counter-num" id="evCount">0</span>
+        <p style="font-size:0.95rem;font-family:'Space Grotesk',sans-serif;font-weight:500;color:rgba(245,240,232,0.55);margin:0.5rem 0 0.2rem">E-Autos produziert</p>
+        <p style="font-size:0.65rem;color:rgba(245,240,232,0.28);letter-spacing:0.05em">weltweit seit Jan 2026</p>
+      </div>
+      <div>
+        <span class="counter-num" id="liCount">0</span>
+        <p style="font-size:0.95rem;font-family:'Space Grotesk',sans-serif;font-weight:500;color:rgba(245,240,232,0.55);margin:0.5rem 0 0.2rem">kg Lithium abgebaut</p>
+        <p style="font-size:0.65rem;color:rgba(245,240,232,0.28);letter-spacing:0.05em">weltweit seit Jan 2026</p>
+      </div>
+    </div>
+    <p style="font-size:0.55rem;color:rgba(245,240,232,0.12);margin-top:2.5rem;letter-spacing:0.1em;text-transform:uppercase">Wasser: &asymp;2.060 L/Sek &middot; E-Autos: 20 Mio./Jahr &middot; Lithium: 130.000 t/Jahr</p>
+  </div>
+</section>
+
+<!-- ══════════ 02 REGIONEN ══════════ -->
+<section class="section" id="regionen">
+  <div class="editorial editorial--img-left reveal">
+    <div class="editorial-img">
+      <img src="https://images.unsplash.com/photo-1560759226-14da22a643ef?w=900&q=80&fit=crop&crop=center" alt="Lithium Verdunstungsteiche Atacama" loading="lazy">
+      <div class="editorial-img-caption">Salar de Atacama · Chile · Verdunstungsteiche</div>
+    </div>
+    <div class="editorial-body">
+      <span class="section-tag">02 / Regionen</span>
+      <h2>Wo wird Lithium<br>abgebaut?</h2>
+      <p class="lead">Drei Regionen dominieren die globale Förderung – auf Kosten von Wasser, Land und Gemeinschaften.</p>
+      <div class="region-cards">
+        <div class="region-card reveal">
+          <div class="region-num">01</div>
+          <h3>Lithium-Dreieck</h3>
+          <p>Chile, Bolivien, Argentinien – <strong>56%</strong> der Weltreserven. Pro Tonne werden <strong>500.000 Liter</strong> Sole verdampft. Grundwasserspiegel um über <strong>10 Meter</strong> gesunken.</p>
+        </div>
+        <div class="region-card reveal reveal-delay-1">
+          <div class="region-num">02</div>
+          <h3>Australien</h3>
+          <p>Hartgestein-Tagebau. Verarbeitung bei über <strong>1.000 °C</strong>. Ganze Landschaften werden abgetragen.</p>
+        </div>
+        <div class="region-card reveal reveal-delay-2">
+          <div class="region-num">03</div>
+          <h3>Tibet &amp; China</h3>
+          <p>Vergiftete Flüsse und <strong>Millionen</strong> vertriebener Menschen. Riesige neue Vorkommen.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════ LITHIUM MAP ══════════ -->
+<section class="section" id="li-map">
+  <div style="max-width:960px;margin:0 auto">
+    <div class="reveal">
+      <span class="section-tag">Karte · Lithium-Dreieck</span>
+      <h2>Wo das Lithium liegt</h2>
+      <p class="lead">Drei Länder. 56 % der weltweiten Reserven. Auf ein Land klicken.</p>
+    </div>
+    <div class="li-map-wrap reveal">
+      <div class="li-map-svg-wrap">
+        <svg viewBox="0 0 300 400" xmlns="http://www.w3.org/2000/svg">
+          <rect width="300" height="400" fill="#b8cdd8" opacity="0.35"/>
+          <!-- Base land -->
+          <path class="map-land" d="M 52,2 L 265,2 L 294,58 L 294,398 L 132,398 L 100,358 L 55,278 L 28,188 L 32,92 Z"/>
+          <!-- Peru -->
+          <path class="map-land" d="M 52,2 L 155,2 L 172,54 L 170,142 L 138,168 L 52,168 Z"/>
+          <!-- Brazil -->
+          <path class="map-land" d="M 262,54 L 294,58 L 294,398 L 265,398 L 265,204 L 278,138 Z"/>
+          <!-- Paraguay -->
+          <path class="map-land" d="M 250,172 L 278,172 L 278,238 L 250,238 Z"/>
+          <!-- Uruguay -->
+          <path class="map-land" d="M 252,280 L 278,260 L 278,310 L 252,310 Z"/>
+          <!-- Chile -->
+          <path class="map-country--chile" id="mapChile" d="M 118,2 L 155,2 L 172,54 L 172,142 L 160,176 L 154,204 L 144,292 L 132,398 L 100,398 L 108,292 L 116,204 L 116,130 L 118,54 Z"/>
+          <!-- Bolivia -->
+          <path class="map-country--bolivia" id="mapBolivia" d="M 172,54 L 262,54 L 278,138 L 250,172 L 200,172 L 168,142 Z"/>
+          <!-- Argentina -->
+          <path class="map-country--argentina" id="mapArgentina" d="M 168,142 L 200,172 L 250,172 L 265,204 L 265,398 L 132,398 L 144,292 L 154,204 L 160,176 Z"/>
+          <!-- Triangle connector -->
+          <polygon points="146,186 208,132 208,188" fill="rgba(245,240,232,0.12)" stroke="rgba(245,240,232,0.45)" stroke-width="1" stroke-dasharray="4,3"/>
+          <!-- Chile dot: Salar de Atacama -->
+          <g class="map-dot" id="dotChile" data-country="chile">
+            <circle cx="146" cy="186" r="5" fill="rgba(245,240,232,0.95)" stroke="#7a5c38" stroke-width="1.5"/>
+            <circle cx="146" cy="186" r="5" fill="none" stroke="rgba(122,92,56,0.5)" stroke-width="1.5">
+              <animate attributeName="r" values="5;13;5" dur="2s" repeatCount="indefinite"/>
+              <animate attributeName="opacity" values="0.7;0;0.7" dur="2s" repeatCount="indefinite"/>
+            </circle>
+          </g>
+          <!-- Bolivia dot: Salar de Uyuni -->
+          <g class="map-dot" id="dotBolivia" data-country="bolivia">
+            <circle cx="208" cy="132" r="5" fill="rgba(245,240,232,0.95)" stroke="#c4622d" stroke-width="1.5"/>
+            <circle cx="208" cy="132" r="5" fill="none" stroke="rgba(196,98,45,0.5)" stroke-width="1.5">
+              <animate attributeName="r" values="5;13;5" dur="2.4s" repeatCount="indefinite"/>
+              <animate attributeName="opacity" values="0.7;0;0.7" dur="2.4s" repeatCount="indefinite"/>
+            </circle>
+          </g>
+          <!-- Argentina dot: Salinas Grandes -->
+          <g class="map-dot" id="dotArgentina" data-country="argentina">
+            <circle cx="208" cy="188" r="5" fill="rgba(245,240,232,0.95)" stroke="#a06820" stroke-width="1.5"/>
+            <circle cx="208" cy="188" r="5" fill="none" stroke="rgba(160,104,32,0.5)" stroke-width="1.5">
+              <animate attributeName="r" values="5;13;5" dur="2.8s" repeatCount="indefinite"/>
+              <animate attributeName="opacity" values="0.7;0;0.7" dur="2.8s" repeatCount="indefinite"/>
+            </circle>
+          </g>
+          <!-- Labels -->
+          <text x="136" y="158" font-family="Space Grotesk,sans-serif" font-size="7.5" fill="rgba(245,240,232,0.82)" font-weight="700" text-anchor="middle" letter-spacing="1.2">CHILE</text>
+          <text x="215" y="112" font-family="Space Grotesk,sans-serif" font-size="7.5" fill="rgba(245,240,232,0.82)" font-weight="700" text-anchor="middle" letter-spacing="1.2">BOLIVIEN</text>
+          <text x="208" y="255" font-family="Space Grotesk,sans-serif" font-size="7.5" fill="rgba(245,240,232,0.82)" font-weight="700" text-anchor="middle" letter-spacing="1.2">ARGENTINIEN</text>
+          <text x="155" y="38" font-family="Space Grotesk,sans-serif" font-size="6.5" fill="rgba(122,92,56,0.55)" font-weight="600" text-anchor="middle" letter-spacing="0.5">PERU</text>
+          <text x="275" y="200" font-family="Space Grotesk,sans-serif" font-size="6" fill="rgba(122,92,56,0.45)" font-weight="600" text-anchor="middle" transform="rotate(-90,275,200)">BRASILIEN</text>
+        </svg>
+        <p class="map-hint">▲ Land oder Marker anklicken</p>
+      </div>
+      <div class="map-info" id="mapInfo">
+        <span class="map-info-tag">Lithium-Dreieck</span>
+        <span class="map-info-name" style="color:var(--neutral)">Land auswählen →</span>
+        <span class="map-info-sub">Chile · Bolivien · Argentinien</span>
+        <span class="map-info-desc">Klicke auf ein Land oder einen Marker für detaillierte Fakten zu Reserven, Umweltfolgen und politischen Akteuren.</span>
+        <div id="mapStats"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════ BEFORE / AFTER SLIDER ══════════ -->
+<section class="section ba-section reveal">
+  <span class="section-tag">Vorher · Nachher</span>
+  <h2>Salar de Atacama –<br>Natur gegen Industrie</h2>
+  <p class="lead">Ziehe den Regler und sieh, was Lithiumabbau aus dem Salar macht.</p>
+</section>
+<div class="ba-wrap" id="baWrap">
+  <div class="ba-img ba-before" style="background-image:url('https://images.unsplash.com/photo-1530812074867-b93347a3bd10?w=1800&q=80&fit=crop&crop=center')"></div>
+  <div class="ba-img ba-after" id="baAfter" style="background-image:url('https://images.unsplash.com/photo-1560759226-14da22a643ef?w=1800&q=80&fit=crop&crop=center')"></div>
+  <div class="ba-divider" id="baDivider"></div>
+  <div class="ba-handle" id="baHandle">
+    <svg viewBox="0 0 20 13"><polyline points="6,1 1,6.5 6,12"/><polyline points="14,1 19,6.5 14,12"/></svg>
+  </div>
+  <span class="ba-label ba-label-before">Vorher · Unberührter Salar</span>
+  <span class="ba-label ba-label-after">Nachher · Lithium-Verdunstungsteiche</span>
+</div>
+
+<!-- ══════════ 03 GEWINNER ══════════ -->
+<section class="section section--dark" id="gewinner">
+  <div class="panel" style="background:rgba(30,26,20,0.0);border-color:rgba(255,255,255,0.07);max-width:960px">
+    <div class="reveal">
+      <span class="section-tag">03 / Gewinner &amp; Verlierer</span>
+      <h2>Gewinner vs.<br>Verlierer</h2>
+    </div>
+    <div class="vs-grid" style="background:rgba(255,255,255,0.06)">
+      <div class="vs-card reveal" style="background:rgba(255,255,255,0.04)">
+        <div class="vs-label">Gewinner</div>
+        <p style="color:rgba(245,240,232,0.6)">Der chinesische Konzern <strong>CATL</strong> erzielte 2025 einen Rekordgewinn von über <strong>10 Mrd. USD</strong> (+<strong>42%</strong>). Zusammen mit <strong>BYD</strong> kontrollieren beide über <strong>55%</strong> des globalen EV-Batteriemarkts.</p>
+      </div>
+      <div class="vs-card vs-card--lose reveal reveal-delay-1" style="background:rgba(196,98,45,0.06)">
+        <div class="vs-label">Verlierer</div>
+        <p style="color:rgba(245,240,232,0.6)">Die <strong>Lickanantay</strong> in Chile – ihr Grundwasser verschwindet. Über <strong>400</strong> indigene Gemeinschaften betroffen. In Tibet wurden <strong>2,3 Millionen</strong> Menschen vertrieben.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════ FULL-BLEED AERIAL ══════════ -->
+<div class="img-banner reveal" style="height:520px">
+  <img src="https://images.unsplash.com/photo-1579762715118-a6f1d4b934f1?w=1800&q=80&fit=crop&crop=top" alt="Luftbild Wüste" loading="lazy">
+  <div class="img-banner-overlay" style="background:linear-gradient(to bottom,rgba(26,18,8,0.2) 0%,rgba(26,18,8,0.75) 100%)">
+    <p class="img-banner-text" style="font-size:clamp(0.8rem,1.2vw,1rem);font-style:normal;font-family:'Space Grotesk',sans-serif;letter-spacing:0.18em;text-transform:uppercase;opacity:0.75">500.000 Liter Wasser · Für eine einzige Tonne Lithium</p>
+  </div>
+</div>
+
+<!-- ══════════ 04 MYTHOS ══════════ -->
+<section class="section" id="mythos">
+  <div class="editorial editorial--img-right reveal">
+    <div class="editorial-body">
+      <span class="section-tag">04 / Mythos</span>
+      <h2>Der Mythos<br>„Grüne" Energie</h2>
+      <div class="co2-wrap reveal">
+        <p style="font-size:0.65rem;font-weight:600;letter-spacing:0.2em;text-transform:uppercase;color:var(--neutral);margin-bottom:1.1rem;padding-bottom:0.55rem;border-bottom:1px solid rgba(122,92,56,0.12)">Herstellung</p>
+        <div>
+          <div class="co2-row-label">E-Auto</div>
+          <div class="co2-track"><div class="co2-bar co2-bar--ev" data-width="90"><span>12 t CO₂</span></div></div>
+        </div>
+        <div style="margin-top:0.8rem">
+          <div class="co2-row-label">Verbrenner</div>
+          <div class="co2-track"><div class="co2-bar co2-bar--ice" data-width="60"><span>8 t CO₂</span></div></div>
+        </div>
+        <p style="font-size:0.65rem;font-weight:600;letter-spacing:0.2em;text-transform:uppercase;color:var(--neutral);margin:1.8rem 0 1.1rem;padding-bottom:0.55rem;border-bottom:1px solid rgba(122,92,56,0.12)">Gesamte Lebensdauer (150.000 km)</p>
+        <div>
+          <div class="co2-row-label">E-Auto</div>
+          <div class="co2-track"><div class="co2-bar co2-bar--ev" data-width="33"><span>21 t CO₂</span></div></div>
+        </div>
+        <div style="margin-top:0.8rem">
+          <div class="co2-row-label">Verbrenner</div>
+          <div class="co2-track"><div class="co2-bar co2-bar--ice" data-width="100"><span>63 t CO₂</span></div></div>
+        </div>
+      </div>
+      <p class="reveal">Über die gesamte Lebensdauer ist das EV besser: laut ICCT etwa <strong>71%</strong> weniger Treibhausgase. Das Problem liegt nicht im Fahren, sondern im Abbau.</p>
+      <p class="reveal">Heute werden nur <strong>20–30%</strong> der Lithiumbatterien recycelt – normale Autobatterien kommen auf über <strong>90%</strong>.</p>
+      <blockquote class="pull-quote reveal">Ein E-Auto ist nicht „grün" – es verlagert das Problem nur.</blockquote>
+    </div>
+    <div class="editorial-img">
+      <img src="https://images.unsplash.com/photo-1497440001374-f26997328c1b?w=900&q=80&fit=crop&crop=center" alt="Solarpark Luftbild" loading="lazy">
+      <div class="editorial-img-caption">Solarenergie · Das Bild, das die Werbung zeigt</div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════ 05 STIMMEN ══════════ -->
+<section class="section section--dark" id="stimmen">
+  <div class="panel" style="background:rgba(30,26,20,0.0);border-color:rgba(255,255,255,0.07)">
+    <div class="reveal">
+      <span class="section-tag">05 / Stimmen</span>
+      <h2>Stimmen<br>Betroffener</h2>
+    </div>
+    <div class="quotes-grid" style="background:rgba(255,255,255,0.05)">
+      <blockquote class="quote-block reveal" style="background:rgba(255,255,255,0.04)">
+        <p style="color:#f5ead8">„Der Salar de Atacama ist zum Tode verurteilt."</p>
+        <cite>Sonia Ramos Chocobar, Lickanantay-Aktivistin, Chile (Mongabay, 2024)</cite>
+      </blockquote>
+      <blockquote class="quote-block reveal reveal-delay-1" style="background:rgba(255,255,255,0.04)">
+        <p style="color:#f5ead8">„Wir sehen das Land durch eine ganz andere Linse – eine spirituelle. Die passt grundsätzlich nicht zum Extraktionsmodell der Konzerne."</p>
+        <cite>Oriana Mora, Atacameña-Forscherin (Mongabay, 2024)</cite>
+      </blockquote>
+    </div>
+    <div class="slogan-box reveal" style="background:rgba(255,255,255,0.04);border-color:rgba(255,255,255,0.07)">
+      <p class="slogan-pre">Protestslogan in der Atacama:</p>
+      <span class="slogan-text" id="sloganText" data-full='"El agua vale más que el litio"'></span>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════ FLAMINGO BANNER ══════════ -->
+<div class="img-banner reveal">
+  <img src="https://images.unsplash.com/photo-1509300983548-87c58d8bb5e7?w=1800&q=80&fit=crop&crop=center" alt="Flamingos Atacama" loading="lazy">
+  <div class="img-banner-overlay">
+    <p class="img-banner-text">Drei Flamingo-Arten nisten an den Lagunen des Salar de Atacama – alle als gefährdet eingestuft.</p>
+  </div>
+</div>
+
+<!-- ══════════ 06 SOCIAL MEDIA ══════════ -->
+<section class="section" id="social">
+  <div class="editorial editorial--img-left reveal">
+    <div class="editorial-img">
+      <img src="https://images.unsplash.com/photo-1580413193140-8af6ffa819e1?w=900&q=80&fit=crop&crop=center" alt="Chilenische Küstenlandschaft Atacama" loading="lazy">
+      <div class="editorial-img-caption">Chile · Atacama-Region · Die andere Realität</div>
+    </div>
+    <div class="editorial-body">
+      <span class="section-tag">06 / Social Media</span>
+      <h2>Social Media<br>vs. Realität</h2>
+      <div class="split-compare reveal">
+        <div class="split-item split-item--pos">
+          <div class="split-label">Social Media zeigt:</div>
+          <ul>
+            <li>Glänzende E-Autos</li>
+            <li>Grüne Landschaften</li>
+            <li>„Zero Emission"</li>
+          </ul>
+        </div>
+        <div class="split-vs">vs.</div>
+        <div class="split-item split-item--neg">
+          <div class="split-label">Die Realität:</div>
+          <ul>
+            <li>Verdunstungsteiche in der Wüste</li>
+            <li>Ausgetrocknete Lagunen</li>
+            <li>Sterbende Flamingos</li>
+          </ul>
+        </div>
+      </div>
+      <p class="reveal">Eine Studie aus 2024 zeigte: Teslas eigene Klimaangaben sind um bis zu <strong>49%</strong> übertrieben – weil Emissionen aus dem Rohstoffabbau einfach weggelassen werden.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════ 07 FAZIT ══════════ -->
+
+<!-- Closing quote bridge -->
+<div class="section section--dark" style="text-align:center;padding:4rem 2rem;border-top:1px solid rgba(255,255,255,0.05)">
+  <p class="reveal" style="font-family:'Playfair Display',serif;font-size:clamp(1.2rem,2.8vw,2rem);font-style:italic;color:rgba(245,240,232,0.45);max-width:680px;margin:0 auto;line-height:1.6">„Die Energiewende ist nicht optional –<br>aber sie muss gerecht sein."</p>
+</div>
+
+<section class="section section--dark" id="fazit">
+
+  <div style="max-width:960px;margin:0 auto;position:relative;z-index:1">
+    <div class="reveal">
+      <span class="section-tag">07 / Fazit</span>
+      <h2>Was jetzt?</h2>
+    </div>
+    <p class="lead reveal">Lithium treibt die Energiewende an – auf Kosten der Ärmsten. Was sich ändern muss:</p>
+
+    <div class="fazit-grid">
+      <div class="fazit-card reveal">
+        <div class="fazit-expand-icon"><svg viewBox="0 0 10 10" fill="none" stroke-width="1.8" stroke-linecap="round"><polyline points="1,3 5,7 9,3"/></svg></div>
+        <div class="fazit-num-bg">01</div>
+        <p class="fazit-title">Recycling ernst nehmen</p>
+        <p class="fazit-desc">96 % Rückgewinnung ist technisch möglich (Mercedes), muss aber Pflicht werden.</p>
+        <div class="fazit-extra"><div class="fazit-extra-inner">
+          <p>Mercedes-Benz hat in Pilotversuchen <strong>96 % des Lithiums</strong> aus Altbatterien zurückgewonnen – ein Wert, der industriell skalierbar ist.</p>
+          <p>Die neue <strong>EU-Batterieverordnung (ab 2031)</strong> schreibt Mindestrezyklatanteile vor, doch die Recyclinginfrastruktur fehlt noch weitgehend. Aktuell werden weltweit nur etwa <strong>5 % der Lithium-Ionen-Batterien</strong> fachgerecht recycelt.</p>
+          <p>Recycling schließt den Kreislauf: Weniger Abbau, weniger Wasserverbrauch, weniger Schäden im Lithium-Dreieck.</p>
+        </div></div>
+      </div>
+      <div class="fazit-card reveal reveal-delay-1">
+        <div class="fazit-expand-icon"><svg viewBox="0 0 10 10" fill="none" stroke-width="1.8" stroke-linecap="round"><polyline points="1,3 5,7 9,3"/></svg></div>
+        <div class="fazit-num-bg">02</div>
+        <p class="fazit-title">Alternativen fördern</p>
+        <p class="fazit-desc">Natrium-Ionen-Batterien brauchen kein Lithium und könnten ein Drittel günstiger sein.</p>
+        <div class="fazit-extra"><div class="fazit-extra-inner">
+          <p><strong>CATL</strong> (weltgrößter Batteriehersteller) produziert seit 2023 Natrium-Ionen-Zellen in Serie. Sie enthalten kein Lithium, kein Kobalt, kein Nickel.</p>
+          <p>Weitere Alternativen: <strong>Feststoffbatterien</strong> (Toyota, 2027–2028 erwartet) versprechen höhere Energiedichte bei sicherem, festem Elektrolyten. <strong>LFP-Chemie</strong> (Lithium-Eisenphosphat) verzichtet zumindest auf Kobalt und ist bereits in Massenserienfertigung.</p>
+          <p>Forschungsförderung für Post-Lithium-Technologien ist eine direkte Entlastung für die betroffenen Ökosysteme.</p>
+        </div></div>
+      </div>
+      <div class="fazit-card reveal reveal-delay-2">
+        <div class="fazit-expand-icon"><svg viewBox="0 0 10 10" fill="none" stroke-width="1.8" stroke-linecap="round"><polyline points="1,3 5,7 9,3"/></svg></div>
+        <div class="fazit-num-bg">03</div>
+        <p class="fazit-title">Indigene Rechte schützen</p>
+        <p class="fazit-desc">Kein Abbau ohne echte Zustimmung der Betroffenen.</p>
+        <div class="fazit-extra"><div class="fazit-extra-inner">
+          <p>Die <strong>Lickanantay-Gemeinschaft</strong> im chilenischen Atacama-Becken kämpft seit Jahren um Mitspracherecht. Trotz UN-Konvention Nr. 169 (Free, Prior and Informed Consent) werden Genehmigungen oft ohne echte Konsultation erteilt.</p>
+          <p>In <strong>Argentinien</strong> blockierten indigene Gruppen 2023 mehrfach Abbauvorhaben auf ihrem Territorium – mit vorüberfolg. Internationale Lieferkettengesetze (z. B. <strong>deutsches LkSG</strong>) schaffen erstmals rechtliche Hebel für Importeure.</p>
+          <p>Ohne verbindliche Partizipation bleibt „grüne" Energie auf Kosten der Ärmsten.</p>
+        </div></div>
+      </div>
+      <div class="fazit-card reveal reveal-delay-3">
+        <div class="fazit-expand-icon"><svg viewBox="0 0 10 10" fill="none" stroke-width="1.8" stroke-linecap="round"><polyline points="1,3 5,7 9,3"/></svg></div>
+        <div class="fazit-num-bg">04</div>
+        <p class="fazit-title">Ehrlichkeit</p>
+        <p class="fazit-desc">„Zero Emission" stimmt nur, wenn man die Lieferkette ausblendet.</p>
+        <div class="fazit-extra"><div class="fazit-extra-inner">
+          <p>Ein E-Auto verursacht bei der Herstellung <strong>ca. 8–12 t CO₂-Äquivalente mehr</strong> als ein Verbrenner – vor allem durch die Batterieproduktion. Der „Break-Even" liegt je nach Strommix bei <strong>2–4 Jahren Betrieb</strong>.</p>
+          <p>Der Begriff <strong>„Zero Emission Vehicle"</strong> beschreibt nur den Auspuff, nicht die Fabrik, die Mine oder das Kraftwerk dahinter. Ehrliche Kommunikation meint: Lifecycle-Emissionen vollständig ausweisen.</p>
+          <p>Nur wer den Gesamtpreis kennt, kann echte Klimapolitik betreiben.</p>
+        </div></div>
+      </div>
+    </div>
+
+    <div class="manifesto">
+      <span class="manifesto-line manifesto-line--sm reveal">Die Kosten kennen.</span>
+      <div class="manifesto-rule"></div>
+      <span class="manifesto-line manifesto-line--mid reveal reveal-delay-1">Die Wahrheit sagen.</span>
+      <div class="manifesto-rule"></div>
+      <span class="manifesto-line manifesto-line--accent reveal reveal-delay-2">Die Wahl treffen.</span>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer id="footer">
+  <div class="footer-watermark">LI</div>
+  <p class="footer-text" style="margin-bottom:0.75rem">Erdkunde-Projekt · 2025</p>
+  <p class="footer-text" style="letter-spacing:0.06em;margin-bottom:0.4rem;color:rgba(245,240,232,0.18);font-size:0.6rem">QUELLEN</p>
+  <div style="display:flex;flex-wrap:wrap;gap:0.4rem 1.5rem;justify-content:center;position:relative;z-index:1">
+    <span class="footer-text">IEA – Global EV Outlook 2024</span>
+    <span class="footer-text">ICCT – EV Lifecycle Emissions 2024</span>
+    <span class="footer-text">Mongabay – Atacama Reporting 2024</span>
+    <span class="footer-text">CATL Annual Report 2025</span>
+  </div>
+</footer>
+
+</div><!-- /page -->
+
+<script>
+// ═══════════════════════════════════════════════════
+// PERLIN NOISE
+// ═══════════════════════════════════════════════════
+const _p = Array.from({length:256},(_,i)=>i);
+for(let i=255;i>0;i--){const j=Math.floor(Math.random()*(i+1));[_p[i],_p[j]]=[_p[j],_p[i]]}
+const perm=[..._p,..._p];
+function fade(t){return t*t*t*(t*(t*6-15)+10)}
+function lerp(t,a,b){return a+t*(b-a)}
+function grad(h,x,y){const u=h<8?x:y,v=h<4?y:h===12||h===14?x:0;return((h&1)?-u:u)+((h&2)?-v:v)}
+function noise2(x,y){
+  const X=Math.floor(x)&255,Y=Math.floor(y)&255;
+  x-=Math.floor(x);y-=Math.floor(y);
+  const u=fade(x),v=fade(y);
+  const a=perm[X]+Y,aa=perm[a],ab=perm[a+1];
+  const b=perm[X+1]+Y,ba=perm[b],bb=perm[b+1];
+  return lerp(v,lerp(u,grad(perm[aa],x,y),grad(perm[ba],x-1,y)),
+                lerp(u,grad(perm[ab],x,y-1),grad(perm[bb],x-1,y-1)));
+}
+
+// ═══════════════════════════════════════════════════
+// THREE.JS PARTICLE SYSTEM
+// ═══════════════════════════════════════════════════
+(function(){
+  const canvas = document.getElementById('bg');
+
+  // Geraete-Erkennung: pointer:coarse erkennt Touch-Geraete zuverlaessiger als nur Bildschirmbreite
+  const coarsePointer = matchMedia('(pointer: coarse)').matches;
+  const w = window.innerWidth;
+  let tier;
+  if (coarsePointer && w < 768) tier = 'mobile';
+  else if (coarsePointer || w < 1100) tier = 'tablet';
+  else tier = 'desktop';
+
+  // Drei Performance-Profile: Partikelzahl, Trail-Laenge, Pixel-Aufloesung pro Geraet
+  const PROFILES = {
+    mobile:  { count:  200, trail: 2, pixelRatio: 1,   noiseScale: 0.003,  particleSize: 3.5 },
+    tablet:  { count: 2000, trail: 4, pixelRatio: 1.5, noiseScale: 0.0025, particleSize: 4 },
+    desktop: { count: 7000, trail: 6, pixelRatio: 2,   noiseScale: 0.002,  particleSize: 5 }
+  };
+  const profile = PROFILES[tier];
+  const COUNT = profile.count;
+  const TRAIL = profile.trail;
+  const TOTAL = COUNT * TRAIL;
+
+  const renderer = new THREE.WebGLRenderer({canvas, alpha:true, antialias:false});
+  renderer.setPixelRatio(Math.min(devicePixelRatio, profile.pixelRatio));
+  renderer.autoClear = true;
+  renderer.setClearColor(0x000000, 0);
+
+  const scene = new THREE.Scene();
+  let W = window.innerWidth, H = window.innerHeight;
+  const camera = new THREE.OrthographicCamera(0, W, 0, H, -1, 1);
+  camera.position.z = 0;
+
+  const posArr = new Float32Array(TOTAL * 3);
+  const colArr = new Float32Array(TOTAL * 3);
+  const alpArr = new Float32Array(TOTAL);
+  const szeArr = new Float32Array(TOTAL);
+
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(posArr, 3));
+  geo.setAttribute('color', new THREE.BufferAttribute(colArr, 3));
+  geo.setAttribute('alpha', new THREE.BufferAttribute(alpArr, 1));
+  geo.setAttribute('size', new THREE.BufferAttribute(szeArr, 1));
+
+  const mat = new THREE.ShaderMaterial({
+    vertexColors: true, transparent: true, depthTest: false,
+    blending: THREE.NormalBlending, uniforms: {},
+    vertexShader:`
+      attribute float alpha; attribute float size;
+      varying vec3 vColor; varying float vAlpha;
+      void main(){vColor=color;vAlpha=alpha;gl_PointSize=size;
+        gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}`,
+    fragmentShader:`
+      varying vec3 vColor; varying float vAlpha;
+      void main(){
+        float d=length(gl_PointCoord-0.5)*2.0;
+        float a=smoothstep(1.0,0.15,d)*vAlpha;
+        gl_FragColor=vec4(vColor,a);}`
+  });
+
+  const points = new THREE.Points(geo, mat);
+  scene.add(points);
+
+  const px = new Float32Array(COUNT);
+  const py = new Float32Array(COUNT);
+  const vx = new Float32Array(COUNT);
+  const vy = new Float32Array(COUNT);
+  const type = new Uint8Array(COUNT);
+  const hist = new Array(COUNT).fill(null).map(()=>({x:new Float32Array(TRAIL),y:new Float32Array(TRAIL)}));
+
+  const life = new Float32Array(COUNT);
+  const maxL = new Float32Array(COUNT);
+  const LIFE_MIN = 250, LIFE_MAX = 580;
+
+  function spawnAt(i, x, y) {
+    px[i]=x; py[i]=y;
+    vx[i]=(Math.random()-0.5)*0.8; vy[i]=(Math.random()-0.5)*0.8;
+    life[i]=0;
+    maxL[i]=LIFE_MIN+Math.random()*(LIFE_MAX-LIFE_MIN);
+    for(let t=0;t<TRAIL;t++){hist[i].x[t]=x;hist[i].y[t]=y;}
+  }
+
+  function respawn(i) {
+    // 45% interior spawn → keeps center populated despite rotational flow field
+    if(Math.random() < 0.45) {
+      spawnAt(i, W*0.1+Math.random()*W*0.8, H*0.1+Math.random()*H*0.8);
+      return;
+    }
+    const edge=Math.floor(Math.random()*4);
+    let x,y;
+    if(edge===0)      {x=Math.random()*W;y=-8;}
+    else if(edge===1) {x=W+8;y=Math.random()*H;}
+    else if(edge===2) {x=Math.random()*W;y=H+8;}
+    else              {x=-8;y=Math.random()*H;}
+    spawnAt(i,x,y);
+  }
+
+  for(let i=0;i<COUNT;i++){
+    type[i]=i<COUNT/2?0:1;
+    maxL[i]=LIFE_MIN+Math.random()*(LIFE_MAX-LIFE_MIN);
+    spawnAt(i,Math.random()*W,Math.random()*H);
+    life[i]=Math.random()*maxL[i];
+  }
+
+  let colorRatio=0.5,scrollRatio=0,noiseTime=0;
+  let frameTime=0;
+
+  window.addEventListener('scroll',()=>{
+    scrollRatio=window.scrollY/(document.documentElement.scrollHeight-window.innerHeight||1);
+  },{passive:true});
+
+  function resize(){
+    W=window.innerWidth;H=window.innerHeight;
+    renderer.setSize(W,H);
+    camera.right=W;camera.bottom=H;
+    camera.updateProjectionMatrix();
+  }
+  resize();
+  window.addEventListener('resize',resize);
+
+  const ENERGY_R=122/255,ENERGY_G=92/255,ENERGY_B=56/255;
+  const COST_R=196/255,COST_G=98/255,COST_B=45/255;
+  const NOISE_SCALE=profile.noiseScale;
+  const SPEED=1.2;
+  const FLOW_LERP=0.04;
+
+  let lastTs=0;
+  function tick(ts){
+    const dt=Math.min(ts-lastTs,33); lastTs=ts;
+    // FIX: Bedingung war vorher >16.5 — das hat auf 60Hz-Displays (= praktisch alle Handys)
+    // jeden Frame uebersprungen. Jetzt: skip nur wenn weniger als 14ms vergangen sind.
+    // Effekt: 60Hz rendert sauber, 120Hz wird auf ~60fps gecappt damit Animation nicht zu schnell laeuft.
+    if(ts-frameTime < 14){requestAnimationFrame(tick);return}
+    frameTime=ts; noiseTime+=0.00035;
+
+    if(scrollRatio<0.5) colorRatio=scrollRatio;
+    else if(scrollRatio<0.75) colorRatio=0.5+(scrollRatio-0.5)*2*0.5;
+    else colorRatio=1.0-(scrollRatio-0.75)*4*0.5;
+    colorRatio=Math.max(0,Math.min(1,colorRatio));
+
+    for(let i=0;i<COUNT;i++){
+      life[i]++;
+      if(life[i]>=maxL[i]){respawn(i);continue;}
+      if(px[i]<-24||px[i]>W+24||py[i]<-24||py[i]>H+24){respawn(i);continue;}
+
+      const nx=px[i]*NOISE_SCALE, ny=py[i]*NOISE_SCALE;
+      // two noise layers → more organic, prevents flow-field stagnation
+      const a1=noise2(nx+noiseTime,ny+noiseTime)*Math.PI*4;
+      const a2=noise2(nx+noiseTime*0.6+80,ny+noiseTime*0.6+80)*Math.PI*2;
+      const angle=a1*0.78+a2*0.22;
+      const dir=type[i]===0?1:-1;
+      const targetVx=Math.cos(angle)*dir*SPEED;
+      const targetVy=Math.sin(angle)*dir*SPEED;
+      vx[i]+=(targetVx-vx[i])*FLOW_LERP;
+      vy[i]+=(targetVy-vy[i])*FLOW_LERP;
+
+      const spd=Math.sqrt(vx[i]*vx[i]+vy[i]*vy[i]);
+      if(spd>5){vx[i]=vx[i]/spd*5;vy[i]=vy[i]/spd*5;}
+
+      for(let t=TRAIL-1;t>0;t--){hist[i].x[t]=hist[i].x[t-1];hist[i].y[t]=hist[i].y[t-1];}
+      hist[i].x[0]=px[i]; hist[i].y[0]=py[i];
+      px[i]+=vx[i]; py[i]+=vy[i];
+
+      const isEnergy=type[i]===0;
+      let cr,cg,cb;
+      if(isEnergy){
+        const intensity=0.52+colorRatio*0.32;
+        cr=ENERGY_R*intensity;cg=ENERGY_G*intensity;cb=ENERGY_B*intensity;
+      } else {
+        const intensity=0.42+colorRatio*0.48;
+        cr=COST_R*intensity;cg=COST_G*intensity;cb=COST_B*intensity;
+      }
+
+      // smooth fade-in (first 8%) and fade-out (last 12%) over particle lifespan
+      const p=life[i]/maxL[i];
+      const lifeA=p<0.08?p/0.08:p>0.88?(1-p)/0.12:1.0;
+      const baseAlpha=(isEnergy?0.68:0.74)*lifeA;
+
+      for(let t=0;t<TRAIL;t++){
+        const idx=(i*TRAIL+t)*3;
+        posArr[idx]=hist[i].x[t];
+        posArr[idx+1]=H-hist[i].y[t];
+        posArr[idx+2]=0;
+        colArr[idx]=cr;colArr[idx+1]=cg;colArr[idx+2]=cb;
+        alpArr[i*TRAIL+t]=(1-t/TRAIL)*baseAlpha;
+        szeArr[i*TRAIL+t]=Math.max(1,(1-t/TRAIL)*profile.particleSize);
+      }
+    }
+
+    geo.attributes.position.needsUpdate=true;
+    geo.attributes.color.needsUpdate=true;
+    geo.attributes.alpha.needsUpdate=true;
+    geo.attributes.size.needsUpdate=true;
+
+    renderer.render(scene,camera);
+    requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+})();
+
+// ═══════════════════════════════════════════════════
+// HERO BACKGROUND — lazy load + ken burns
+// ═══════════════════════════════════════════════════
+(function(){
+  const bg = document.getElementById('heroBg');
+  const img = new Image();
+  img.src = 'https://images.unsplash.com/photo-1630315283965-8b0a4a4a8cb8?w=1800&q=80&fit=crop';
+  img.onload = ()=>{
+    bg.style.backgroundImage = `url('${img.src}')`;
+    setTimeout(()=>bg.classList.add('loaded'), 100);
+  };
+})();
+
+// ═══════════════════════════════════════════════════
+// LOADER
+// ═══════════════════════════════════════════════════
+(function(){
+  const bar = document.getElementById('loader-bar');
+  const loader = document.getElementById('loader');
+  const label = document.getElementById('loader-label');
+  if(!bar || !loader) return;
+
+  const facts = [
+    'Wird geladen',
+    '+500 % Nachfrage bis 2040',
+    '500.000 L Wasser · 1 Tonne Lithium',
+    '56 % Weltreserven im Dreieck',
+    '20 Mio. E-Autos 2025',
+    '71 % weniger CO₂ Lebensdauer',
+    'Nur 20–30 % Recycling',
+    '400+ Gemeinschaften betroffen',
+  ];
+  let fi = 0;
+  let factIv = null;
+  function cycleFact(){
+    label.style.opacity = '0';
+    setTimeout(()=>{
+      fi = (fi + 1) % facts.length;
+      label.textContent = facts[fi];
+      label.style.opacity = '1';
+    }, 350);
+  }
+  setTimeout(()=>{ factIv = setInterval(cycleFact, 950); }, 600);
+
+  const startTime = Date.now();
+  const MIN_MS = 4000;
+  let p = 0;
+  let done = false;
+  function finish(){
+    if(done) return;
+    done = true;
+    if(factIv) clearInterval(factIv);
+    bar.style.width = '100%';
+    const remaining = MIN_MS - (Date.now() - startTime);
+    setTimeout(()=>loader.classList.add('gone'), Math.max(300, remaining));
+  }
+
+  const iv = setInterval(()=>{
+    p += Math.random()*4 + 1;
+    if(p>=100){clearInterval(iv);finish();return}
+    bar.style.width = p+'%';
+  }, 100);
+
+  setTimeout(()=>{clearInterval(iv);finish();}, 8000);
+})();
+
+// ═══════════════════════════════════════════════════
+// CUSTOM CURSOR
+// ═══════════════════════════════════════════════════
+(function(){
+  // Auf Touch-Geraeten gar nicht erst starten — der RAF-Loop liefe sonst dauerhaft umsonst
+  if (matchMedia('(pointer: coarse)').matches) return;
+  const core = document.getElementById('cursor-core');
+  const ring = document.getElementById('cursor-ring');
+  let cx=0,cy=0,rx=0,ry=0;
+
+  window.addEventListener('mousemove',e=>{cx=e.clientX;cy=e.clientY});
+  window.addEventListener('mousedown',()=>{
+    for(let i=0;i<5;i++){
+      const b=document.createElement('div');b.className='cursor-burst';
+      const angle=Math.random()*Math.PI*2;
+      const dist=25+Math.random()*20;
+      b.style.cssText=`left:${cx}px;top:${cy}px;--dx:${Math.cos(angle)*dist}px;--dy:${Math.sin(angle)*dist}px`;
+      document.body.appendChild(b);
+      b.addEventListener('animationend',()=>b.remove());
+    }
+  });
+
+  document.querySelectorAll('a,button,.stat-card,.region-card,.vs-card,.quote-block,.action-list li,.editorial').forEach(el=>{
+    el.addEventListener('mouseenter',()=>document.body.classList.add('hovering'));
+    el.addEventListener('mouseleave',()=>document.body.classList.remove('hovering'));
+  });
+
+  let lastRaf=0;
+  function moveCursor(ts){
+    if(ts-lastRaf>8){
+      lastRaf=ts;
+      core.style.left=cx+'px';core.style.top=cy+'px';
+      rx+=(cx-rx)*0.1;ry+=(cy-ry)*0.1;
+      ring.style.left=rx+'px';ring.style.top=ry+'px';
+    }
+    requestAnimationFrame(moveCursor);
+  }
+  requestAnimationFrame(moveCursor);
+})();
+
+// ═══════════════════════════════════════════════════
+// GSAP + SCROLLTRIGGER
+// ═══════════════════════════════════════════════════
+(function(){
+  gsap.registerPlugin(ScrollTrigger);
+
+  gsap.to('.hero-eyebrow',{opacity:1,y:0,duration:0.9,delay:2.6,ease:'power3.out'});
+  gsap.to('.hero-pre',{opacity:1,y:0,duration:1,delay:2.8,ease:'power3.out'});
+  gsap.to('.hero-h1',{opacity:1,y:0,duration:1.1,delay:3.0,ease:'power3.out'});
+  gsap.to('.hero-sub',{opacity:1,y:0,duration:0.9,delay:3.2,ease:'power3.out'});
+  gsap.to('.hero-desc',{opacity:1,y:0,duration:0.9,delay:3.4,ease:'power3.out'});
+  gsap.to('#heroScroll',{opacity:1,duration:1.2,delay:3.9,ease:'power2.out'});
+
+  const heroH1 = document.getElementById('heroTitle');
+  const heroSub = document.getElementById('heroSub');
+  function splitLetters(el){
+    // collect raw text from all child nodes / line spans
+    const lines = el.querySelectorAll('.hero-h1-line');
+    if(lines.length){
+      // replace each line span's text with letter spans, keep line spans as wrappers
+      lines.forEach(line=>{
+        const txt=line.textContent;
+        line.textContent='';
+        txt.split('').forEach(ch=>{
+          const s=document.createElement('span');
+          s.textContent=ch; s.style.display='inline-block';
+          line.appendChild(s);
+        });
+      });
+      return el.querySelectorAll('span:not(.hero-h1-line)');
+    }
+    const txt=el.textContent;
+    el.textContent='';
+    txt.split('').forEach(ch=>{
+      const s=document.createElement('span');
+      s.textContent=ch; s.style.display='inline-block';
+      el.appendChild(s);
+    });
+    return el.querySelectorAll('span');
+  }
+  const titleLetters = splitLetters(heroH1);
+  const subLetters = splitLetters(heroSub);
+
+  ScrollTrigger.create({
+    trigger:'#hero',start:'top top',end:'bottom top',
+    onLeave:()=>{
+      gsap.to(titleLetters,{opacity:0,y:()=>gsap.utils.random(-60,60),x:()=>gsap.utils.random(-40,40),rotation:()=>gsap.utils.random(-25,25),duration:0.65,stagger:{each:0.02,from:'center'},ease:'power2.in'});
+      gsap.to(subLetters,{opacity:0,y:()=>gsap.utils.random(-80,80),x:()=>gsap.utils.random(-60,60),duration:0.55,stagger:{each:0.03,from:'random'},ease:'power2.in',delay:0.1});
+    },
+    onEnterBack:()=>{
+      gsap.to(titleLetters,{opacity:1,y:0,x:0,rotation:0,duration:0.85,stagger:{each:0.02,from:'center'},ease:'power3.out'});
+      gsap.to(subLetters,{opacity:1,y:0,x:0,duration:0.75,stagger:{each:0.02,from:'center'},ease:'power3.out'});
+    }
+  });
+
+  // Parallax on image banners — base scale(1.18) in CSS keeps edges covered
+  document.querySelectorAll('.img-banner img,.editorial-img img').forEach(img=>{
+    const parent = img.closest('.img-banner,.editorial-img');
+    const h = parent ? parent.offsetHeight : 400;
+    gsap.fromTo(img,
+      {y: -h * 0.07},
+      {y: h * 0.07, ease:'none',
+       scrollTrigger:{trigger:parent,start:'top bottom',end:'bottom top',scrub:true}
+      }
+    );
+
+    // Ken-Burns "breathing" — wrap image in an absolutely-positioned div that
+    // runs a pure CSS keyframe animation. CSS animations run on the compositor
+    // thread, so even if Three.js or other JS hitches the main thread, the
+    // breathing stays butter-smooth. Random negative animation-delay phases
+    // each image so they don't pulse in lockstep.
+    const wrap = document.createElement('div');
+    wrap.className = 'ken-burns-wrap';
+    wrap.style.animationDelay = (-Math.random() * 16).toFixed(2) + 's';
+    img.parentNode.insertBefore(wrap, img);
+    wrap.appendChild(img);
+  });
+})();
+
+// ═══════════════════════════════════════════════════
+// SCROLL REVEAL
+// ═══════════════════════════════════════════════════
+(function(){
+  const obs=new IntersectionObserver((entries)=>{
+    entries.forEach(e=>{if(e.isIntersecting)e.target.classList.add('visible')});
+  },{threshold:0.06,rootMargin:'0px 0px -20px 0px'});
+  document.querySelectorAll('.reveal').forEach(el=>obs.observe(el));
+})();
+
+// ═══════════════════════════════════════════════════
+// CO2 BARS
+// ═══════════════════════════════════════════════════
+(function(){
+  const obs=new IntersectionObserver((entries)=>{
+    entries.forEach(e=>{
+      if(e.isIntersecting){e.target.style.width=e.target.dataset.width+'%';obs.unobserve(e.target)}
+    });
+  },{threshold:0.4});
+  document.querySelectorAll('.co2-bar[data-width]').forEach(b=>obs.observe(b));
+})();
+
+// ═══════════════════════════════════════════════════
+// COUNTER ANIMATION
+// ═══════════════════════════════════════════════════
+(function(){
+  function easeOut(t){return 1-Math.pow(1-t,3)}
+  document.querySelectorAll('.stat-num[data-target]').forEach(el=>{
+    const target=parseFloat(el.dataset.target);
+    const prefix=el.dataset.prefix||'';
+    const suffix=el.dataset.suffix||'';
+    let started=false;
+    new IntersectionObserver((entries)=>{
+      entries.forEach(e=>{
+        if(e.isIntersecting&&!started){
+          started=true;
+          const start=performance.now(),dur=1600;
+          function tick(now){
+            const p=Math.min((now-start)/dur,1);
+            el.textContent=prefix+Math.round(target*easeOut(p))+suffix;
+            if(p<1)requestAnimationFrame(tick);
+          }
+          requestAnimationFrame(tick);
+        }
+      });
+    },{threshold:0.6}).observe(el);
+  });
+})();
+
+// ═══════════════════════════════════════════════════
+// TYPEWRITER
+// ═══════════════════════════════════════════════════
+(function(){
+  const el=document.getElementById('sloganText');
+  if(!el)return;
+  const full=el.dataset.full;
+  const cur=document.createElement('span');cur.className='tw-cursor';cur.textContent='|';
+  el.appendChild(cur);
+  let fired=false;
+  new IntersectionObserver((entries)=>{
+    entries.forEach(e=>{
+      if(e.isIntersecting&&!fired){
+        fired=true;let i=0;
+        function type(){
+          if(i<full.length){el.insertBefore(document.createTextNode(full[i]),cur);i++;setTimeout(type,50)}
+          else setTimeout(()=>cur.classList.add('done'),600);
+        }
+        setTimeout(type,300);
+      }
+    });
+  },{threshold:0.8}).observe(el.closest('.slogan-box'));
+})();
+
+// ═══════════════════════════════════════════════════
+// READ PROGRESS
+// ═══════════════════════════════════════════════════
+(function(){
+  const pb = document.getElementById('read-progress');
+  if(!pb) return;
+  window.addEventListener('scroll',()=>{
+    const pct = window.scrollY / (document.documentElement.scrollHeight - window.innerHeight) * 100;
+    pb.style.width = Math.min(pct,100)+'%';
+  },{passive:true});
+})();
+
+// ═══════════════════════════════════════════════════
+// CHAPTER NAV DOTS
+// ═══════════════════════════════════════════════════
+(function(){
+  const dots = document.querySelectorAll('#chapter-nav .ch-dot');
+  dots.forEach(dot=>{
+    dot.addEventListener('click',()=>{
+      const t = document.getElementById(dot.dataset.target);
+      if(t) t.scrollIntoView({behavior:'smooth'});
+    });
+  });
+  document.querySelectorAll('section[id],header[id]').forEach(sec=>{
+    new IntersectionObserver((entries)=>{
+      entries.forEach(e=>{
+        if(e.isIntersecting){
+          dots.forEach(d=>d.classList.remove('active'));
+          const d=document.querySelector(`#chapter-nav .ch-dot[data-target="${e.target.id}"]`);
+          if(d) d.classList.add('active');
+        }
+      });
+    },{rootMargin:'-40% 0px -55% 0px'}).observe(sec);
+  });
+})();
+
+// ═══════════════════════════════════════════════════
+// WATER COUNTER + EV + LITHIUM
+// ═══════════════════════════════════════════════════
+(function(){
+  const waterEl=document.getElementById('waterCount');
+  const evEl=document.getElementById('evCount');
+  const liEl=document.getElementById('liCount');
+  if(!waterEl) return;
+
+  const WATER_RATE=2060; // L/s (global lithium extraction water use)
+  const EV_RATE=20e6/(365.25*86400); // EVs/s globally
+  const LI_RATE=130e6/(365.25*86400); // kg/s lithium mined globally
+
+  // Base offset: seconds elapsed since Jan 1 of current year
+  const now=new Date();
+  const jan1=new Date(now.getFullYear(),0,1);
+  const yearOffset=(now-jan1)/1000;
+
+  let t0=null,running=false;
+
+  new IntersectionObserver((entries)=>{
+    entries.forEach(e=>{
+      if(e.isIntersecting && !running){
+        running=true; t0=performance.now();
+        (function tick(ts){
+          const elapsed=(ts-t0)/1000;
+          waterEl.textContent=Math.floor(elapsed*WATER_RATE).toLocaleString('de-DE');
+          if(evEl) evEl.textContent=Math.floor(yearOffset*EV_RATE+elapsed*EV_RATE).toLocaleString('de-DE');
+          if(liEl) liEl.textContent=Math.floor(yearOffset*LI_RATE+elapsed*LI_RATE).toLocaleString('de-DE');
+          requestAnimationFrame(tick);
+        })(t0);
+      }
+    });
+  },{threshold:0.3}).observe(waterEl);
+})();
+
+// ═══════════════════════════════════════════════════
+// ACTIVE NAV
+// ═══════════════════════════════════════════════════
+(function(){
+  const links=document.querySelectorAll('.nav-links a');
+  document.querySelectorAll('section[id],header[id]').forEach(sec=>{
+    new IntersectionObserver((entries)=>{
+      entries.forEach(e=>{
+        if(e.isIntersecting){
+          links.forEach(a=>a.classList.remove('active'));
+          const l=document.querySelector(`.nav-links a[href="#${e.target.id}"]`);
+          if(l)l.classList.add('active');
+        }
+      });
+    },{rootMargin:'-40% 0px -55% 0px'}).observe(sec);
+  });
+})();
+
+// ═══════════════════════════════════════════════════
+// LITHIUM MAP
+// ═══════════════════════════════════════════════════
+(function(){
+  const mapData = {
+    chile:{
+      name:'Chile',sub:'Salar de Atacama · Atacama-Wüste, Nordchile',color:'#7a5c38',
+      desc:'Chile ist der weltgrößte Lithiumproduzent. Der Salar de Atacama enthält das konzentrierteste Lithiumvorkommen der Welt – und liegt mitten im trockensten Wohngebiet der Erde.',
+      groups:[
+        {title:'Ressourcen',stats:[
+          {val:'9 Mio. t',lbl:'Lithium-Reserven'},
+          {val:'3.000 km²',lbl:'Fläche Salar de Atacama'},
+          {val:'26 %',lbl:'Anteil Weltproduktion'},
+        ]},
+        {title:'Umweltfolgen',stats:[
+          {val:'500.000 L',lbl:'Wasser pro Tonne Lithium'},
+          {val:'2,2 Mio. m³',lbl:'Wasserentnahme pro Jahr'},
+          {val:'>10 m',lbl:'Grundwasserspiegel gesunken'},
+        ]},
+        {title:'Akteure',stats:[
+          {val:'SQM & Albemarle',lbl:'Hauptkonzerne (USA/Chile)'},
+          {val:'2030',lbl:'Verstaatlichungsziel laut Regierung'},
+        ]},
+      ]
+    },
+    bolivia:{
+      name:'Bolivien',sub:'Salar de Uyuni · Altiplano, Südbolivien',color:'#c4622d',
+      desc:'Bolivien sitzt auf den größten Lithiumreserven der Welt, produziert aber kaum. Hoher Magnesiumgehalt erschwert die Verarbeitung. Seit 2023 ist der Sektor vollständig verstaatlicht.',
+      groups:[
+        {title:'Ressourcen',stats:[
+          {val:'21 Mio. t',lbl:'Lithium-Reserven (größte weltweit)'},
+          {val:'10.582 km²',lbl:'Fläche Salar de Uyuni'},
+          {val:'~50 %',lbl:'Anteil Weltreserven'},
+        ]},
+        {title:'Produktion',stats:[
+          {val:'< 1 %',lbl:'Anteil Weltproduktion (2024)'},
+          {val:'100.000 t',lbl:'Produktionsziel bis 2030'},
+          {val:'YLB',lbl:'Staatliches Lithiumunternehmen'},
+        ]},
+        {title:'Politik',stats:[
+          {val:'verstaatlicht',lbl:'Lithiumsektor seit 2023'},
+          {val:'abgelehnt',lbl:'Westliche Konzessionen bisher'},
+        ]},
+      ]
+    },
+    argentina:{
+      name:'Argentinien',sub:'Salinas Grandes · Jujuy, Salta, Catamarca',color:'#a06820',
+      desc:'Argentinien wächst am schnellsten von allen drei Ländern. Neue DLE-Technologie (Direktextraktion) verspricht weniger Wasserverbrauch. Doch indigene Gemeinschaften wurden kaum konsultiert.',
+      groups:[
+        {title:'Ressourcen',stats:[
+          {val:'22 Mio. t',lbl:'Lithium-Reserven'},
+          {val:'+150 %',lbl:'Produktionswachstum 2024'},
+          {val:'3 Provinzen',lbl:'Jujuy · Salta · Catamarca'},
+        ]},
+        {title:'Soziale Folgen',stats:[
+          {val:'400+',lbl:'betroffene indigene Gemeinschaften'},
+          {val:'kaum',lbl:'Bürgerbeteiligung vor Vergabe'},
+          {val:'Lickanantay',lbl:'Hauptbetroffenes Volk'},
+        ]},
+        {title:'Technologie',stats:[
+          {val:'DLE',lbl:'Direktextraktion – weniger Wasser'},
+          {val:'„Lithium-OPEC"',lbl:'Diskutierter Staatenbund mit Chile/BOL'},
+        ]},
+      ]
+    }
+  };
+  const keys=['chile','bolivia','argentina'];
+  const info=document.getElementById('mapInfo');
+  if(!info) return;
+  const statsEl=document.getElementById('mapStats');
+
+  function applyCountry(key){
+    const d=mapData[key];
+    info.querySelector('.map-info-tag').textContent='Lithium-Dreieck · '+d.name;
+    const nameEl=info.querySelector('.map-info-name');
+    nameEl.textContent=d.name;nameEl.style.color=d.color;
+    info.querySelector('.map-info-sub').textContent=d.sub;
+    const descEl=info.querySelector('.map-info-desc');
+    if(descEl) descEl.textContent=d.desc;
+    statsEl.innerHTML=d.groups.map((g,gi)=>`
+      <div class="map-stat-group" style="animation-delay:${gi*0.08}s">
+        <span class="map-stat-group-title">${g.title}</span>
+        ${g.stats.map(s=>`<div class="map-stat"><span class="map-stat-val" style="color:${d.color}">${s.val}</span><span class="map-stat-lbl">${s.lbl}</span></div>`).join('')}
+      </div>
+    `).join('');
+    info.style.borderColor=d.color+'44';
+    keys.forEach(k=>{
+      const p=document.getElementById('map'+k[0].toUpperCase()+k.slice(1));
+      if(p) p.classList.toggle('map-country--dim', k!==key);
+    });
+  }
+
+  function selectCountry(key){
+    info.classList.remove('mi-in');
+    info.classList.add('mi-out');
+    setTimeout(()=>{
+      applyCountry(key);
+      info.classList.remove('mi-out');
+      info.classList.add('mi-in');
+    }, 190);
+  }
+
+  keys.forEach(k=>{
+    const cap=k[0].toUpperCase()+k.slice(1);
+    [document.getElementById('map'+cap), document.getElementById('dot'+cap)].forEach(el=>{
+      if(!el) return;
+      el.addEventListener('click',()=>selectCountry(k));
+    });
+  });
+})();
+
+// ═══════════════════════════════════════════════════
+// BEFORE / AFTER SLIDER
+// ═══════════════════════════════════════════════════
+(function(){
+  const wrap=document.getElementById('baWrap');
+  const after=document.getElementById('baAfter');
+  const divider=document.getElementById('baDivider');
+  const handle=document.getElementById('baHandle');
+  if(!wrap) return;
+  let dragging=false;
+
+  function setPos(clientX){
+    const r=wrap.getBoundingClientRect();
+    const pct=Math.max(2,Math.min(98,(clientX-r.left)/r.width*100));
+    after.style.clipPath=`inset(0 0 0 ${pct}%)`;
+    divider.style.left=pct+'%';
+    handle.style.left=pct+'%';
+  }
+
+  wrap.addEventListener('mousedown',e=>{dragging=true;setPos(e.clientX)});
+  wrap.addEventListener('touchstart',e=>{dragging=true;setPos(e.touches[0].clientX)},{passive:true});
+  document.addEventListener('mousemove',e=>{if(dragging)setPos(e.clientX)});
+  document.addEventListener('touchmove',e=>{if(dragging)setPos(e.touches[0].clientX)},{passive:true});
+  document.addEventListener('mouseup',()=>dragging=false);
+  document.addEventListener('touchend',()=>dragging=false);
+})();
+
+// ═══════════════════════════════════════════════════
+// EDITORIAL IMAGE PARALLAX
+// ═══════════════════════════════════════════════════
+(function(){
+  document.querySelectorAll('.editorial-img').forEach(wrapper=>{
+    const img=wrapper.querySelector('img');
+    if(!img) return;
+    wrapper.addEventListener('mousemove',e=>{
+      const {left,top,width,height}=wrapper.getBoundingClientRect();
+      const x=(e.clientX-left-width/2)/width;
+      const y=(e.clientY-top-height/2)/height;
+      img.style.transform=`translate(${x*10}px,${y*8}px) scale(1.04)`;
+    });
+    wrapper.addEventListener('mouseleave',()=>{img.style.transform=''});
+  });
+})();
+
+// ═══════════════════════════════════════════════════
+// NAV DARK MODE
+// ═══════════════════════════════════════════════════
+(function(){
+  const nav = document.getElementById('nav');
+  const darkSections = document.querySelectorAll('.section--dark');
+  let darkCount = 0;
+  const io = new IntersectionObserver((entries)=>{
+    entries.forEach(e=>{
+      darkCount += e.isIntersecting ? 1 : -1;
+      nav.classList.toggle('nav-dark', darkCount > 0);
+    });
+  },{threshold:0.15});
+  darkSections.forEach(s=>io.observe(s));
+})();
+
+// ═══════════════════════════════════════════════════
+// FAZIT CARD EXPAND
+// ═══════════════════════════════════════════════════
+(function(){
+  document.querySelectorAll('.fazit-card').forEach(card=>{
+    card.addEventListener('click',function(){
+      this.classList.toggle('expanded');
+    });
+  });
+})();
+
+// ═══════════════════════════════════════════════════
+// SCROLL TO TOP
+// ═══════════════════════════════════════════════════
+(function(){
+  const btn = document.getElementById('scroll-top');
+  window.addEventListener('scroll',()=>{
+    btn.classList.toggle('visible', window.scrollY > 400);
+  },{passive:true});
+  btn.addEventListener('click',()=>{
+    window.scrollTo({top:0,behavior:'smooth'});
+  });
+})();
+</script>
+</body>
+</html>
